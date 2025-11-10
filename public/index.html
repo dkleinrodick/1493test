@@ -386,12 +386,26 @@
                 const originSelect = document.getElementById('origin');
                 const destSelect = document.getElementById('destination');
 
-                // Sort airports by code
-                const sortedAirports = Object.entries(airports).sort((a, b) => a[0].localeCompare(b[0]));
+                // Sort airports by city name, then by code
+                const sortedAirports = Object.entries(airports).sort((a, b) => {
+                    const [codeA, cityA] = a;
+                    const [codeB, cityB] = b;
+
+                    // First compare by city name
+                    const cityCompare = cityA.localeCompare(cityB);
+                    if (cityCompare !== 0) {
+                        return cityCompare;
+                    }
+
+                    // If cities are the same, compare by airport code
+                    return codeA.localeCompare(codeB);
+                });
 
                 sortedAirports.forEach(([code, name]) => {
-                    const option1 = new Option(`${code} - ${name}`, code);
-                    const option2 = new Option(`${code} - ${name}`, code);
+                    // Display format: "City Name (CODE)"
+                    const displayText = `${name} (${code})`;
+                    const option1 = new Option(displayText, code);
+                    const option2 = new Option(displayText, code);
                     originSelect.add(option1);
                     destSelect.add(option2);
                 });
@@ -450,7 +464,19 @@
             } catch (error) {
                 document.getElementById('loading').classList.remove('active');
                 document.querySelector('.btn-primary').disabled = false;
-                alert('Error searching flights: ' + error.message);
+
+                // Show error in results section
+                const resultsCard = document.getElementById('results');
+                const resultsContent = document.getElementById('resultsContent');
+                resultsCard.classList.add('active');
+
+                resultsContent.innerHTML = `
+                    <div class="error-message">
+                        <h3>⚠️ Error Searching Flights</h3>
+                        <p><strong>${error.message}</strong></p>
+                        <p>Please check the console for more details or try again.</p>
+                    </div>
+                `;
             }
         });
 
@@ -474,9 +500,34 @@
             } else {
                 metaHTML += ` <span class="badge badge-fresh">Fresh</span>`;
             }
+
+            // Display detailed error information
             if (data.error) {
-                metaHTML = `<div class="error-message">${data.error}</div>` + metaHTML;
+                let errorHTML = `<div class="error-message">
+                    <h4>⚠️ ${data.error}</h4>`;
+
+                if (data.details || data.errorDetails) {
+                    const details = data.details || data.errorDetails;
+
+                    if (details.type) {
+                        errorHTML += `<p><strong>Error Type:</strong> ${details.type}</p>`;
+                    }
+                    if (details.statusCode) {
+                        errorHTML += `<p><strong>Status Code:</strong> ${details.statusCode} ${details.statusText || ''}</p>`;
+                    }
+                    if (details.url) {
+                        errorHTML += `<p><strong>URL:</strong> <small>${details.url}</small></p>`;
+                    }
+                }
+
+                if (data.suggestion) {
+                    errorHTML += `<p><strong>💡 Suggestion:</strong> ${data.suggestion}</p>`;
+                }
+
+                errorHTML += '</div>';
+                metaHTML = errorHTML + metaHTML;
             }
+
             resultsMeta.innerHTML = metaHTML;
 
             // Display flights

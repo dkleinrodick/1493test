@@ -206,6 +206,7 @@ app.post('/api/search', async (req, res) => {
 
     } catch (err) {
       error = err.message;
+      const errorDetails = err.details || {};
       logScrape(origin, destination, date, scrapeMethod, 'error', error);
 
       // If direct scraping failed, try to return cached data even if old
@@ -216,6 +217,7 @@ app.post('/api/search', async (req, res) => {
             flights: oldCache,
             cached: true,
             error: `Fresh scraping failed: ${error}. Showing cached data.`,
+            errorDetails: errorDetails,
             cachedAt: oldCache[0].scraped_at
           });
         }
@@ -232,10 +234,20 @@ app.post('/api/search', async (req, res) => {
 
   } catch (error) {
     console.error('Search error:', error);
-    res.status(500).json({
+
+    // Build detailed error response
+    const errorResponse = {
       error: error.message,
-      flights: []
-    });
+      flights: [],
+      details: error.details || {}
+    };
+
+    // Add helpful suggestions based on error type
+    if (error.details?.type === 'blocked') {
+      errorResponse.suggestion = 'Try using "Browse.ai API" mode instead of direct scraping.';
+    }
+
+    res.status(500).json(errorResponse);
   }
 });
 

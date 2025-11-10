@@ -154,7 +154,37 @@ async function scrapeFrontierDirect(origin, destination, date) {
 
   } catch (error) {
     console.error('Error scraping Frontier:', error.message);
-    throw error;
+
+    // Provide detailed error information
+    const errorDetails = {
+      message: error.message,
+      type: 'scraping_error',
+      url: url,
+      statusCode: error.response?.status,
+      statusText: error.response?.statusText
+    };
+
+    // Check for specific error types
+    if (error.response?.status === 403) {
+      errorDetails.type = 'blocked';
+      errorDetails.message = 'Frontier blocked the request (403 Forbidden). This typically means bot detection is active. Please use Browse.ai API mode instead.';
+      errorDetails.suggestion = 'Switch to "Browse.ai API" mode in the interface';
+    } else if (error.response?.status === 404) {
+      errorDetails.type = 'not_found';
+      errorDetails.message = 'Flight search page not found (404). The URL structure may have changed.';
+    } else if (error.code === 'ECONNREFUSED') {
+      errorDetails.type = 'connection_refused';
+      errorDetails.message = 'Connection refused. Frontier servers may be down or blocking this IP.';
+    } else if (error.code === 'ETIMEDOUT') {
+      errorDetails.type = 'timeout';
+      errorDetails.message = 'Request timed out. Frontier servers are not responding.';
+    }
+
+    console.error('Detailed error:', JSON.stringify(errorDetails, null, 2));
+
+    const detailedError = new Error(errorDetails.message);
+    detailedError.details = errorDetails;
+    throw detailedError;
   }
 }
 
