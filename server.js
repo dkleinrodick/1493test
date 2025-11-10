@@ -277,7 +277,7 @@ app.post('/api/search', async (req, res) => {
 
 // Bulk search - search all routes from an origin airport
 app.post('/api/search-bulk', async (req, res) => {
-  const { origin, date, useCache, method } = req.body;
+  const { origin, date, useCache, method, useProxies } = req.body;
 
   if (!origin || !date) {
     return res.status(400).json({
@@ -300,10 +300,11 @@ app.post('/api/search-bulk', async (req, res) => {
     console.log(`\n🔍 Bulk search: ${origin} to ${destinations.length} destinations on ${date}`);
     console.log(`Cache mode: ${useCache ? 'enabled' : 'disabled'}`);
     console.log(`Method: ${method || 'scrapfly'}`);
+    console.log(`Proxy mode: ${useProxies ? 'ENABLED' : 'disabled'}`);
 
     const results = [];
     const scrapeMethod = method || 'api';
-    const MAX_CONCURRENT = 5; // Scrapfly API limit
+    const MAX_CONCURRENT = 5; // Support up to 5 parallel requests
     let completed = 0;
     let cached = 0;
     let scraped = 0;
@@ -343,7 +344,7 @@ app.post('/api/search-bulk', async (req, res) => {
             if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
               flights = await scrapeFrontierWithScrapfly(origin, destination, date);
             } else {
-              flights = await scrapeFrontierDirect(origin, destination, date, false);
+              flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false);
             }
 
             // Save to database

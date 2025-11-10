@@ -584,6 +584,7 @@
             const date = document.getElementById('date').value;
             const method = document.querySelector('input[name="method"]:checked').value;
             const useCache = document.getElementById('useCache').checked;
+            const useProxies = document.getElementById('useProxies').checked;
 
             if (!origin) {
                 alert('Please select an origin airport');
@@ -607,7 +608,7 @@
                     <div class="spinner"></div>
                     <p>Searching all routes from ${airportsData[origin]} (${origin})...</p>
                     <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">
-                        This may take several minutes. Processing ${routesData[origin]?.length || 0} destinations with ${useCache ? 'cache enabled' : 'fresh data'}...
+                        This may take several minutes. Processing ${routesData[origin]?.length || 0} destinations with ${useCache ? 'cache enabled' : 'fresh data'}${useProxies ? ' (proxy rotation enabled)' : ''}...
                     </p>
                 </div>
             `;
@@ -624,7 +625,8 @@
                         origin,
                         date,
                         method,
-                        useCache
+                        useCache,
+                        useProxies
                     })
                 });
 
