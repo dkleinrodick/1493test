@@ -37,7 +37,12 @@ async function fetchProxyList() {
     console.log('Fetching proxy list from ProxyScrape API...');
     const url = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&country=us&proxy_format=protocolipport&format=text&timeout=20000';
 
-    https.get(url, (res) => {
+    // Configure HTTPS options to handle SSL certificate issues
+    const options = {
+      rejectUnauthorized: false // Disable SSL certificate verification
+    };
+
+    https.get(url, options, (res) => {
       let data = '';
 
       res.on('data', (chunk) => {
