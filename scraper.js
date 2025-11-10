@@ -1,13 +1,22 @@
 const { chromium } = require('playwright-extra');
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const fs = require('fs');
+const https = require('https');
+const config = require('./config');
 
 // Add stealth plugin
 chromium.use(stealth);
 
 // Rate limiting: store last request time
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 10000; // 10 seconds
+const MIN_REQUEST_INTERVAL = config.MIN_REQUEST_INTERVAL || 10000;
+
+// Proxy configuration
+const PROXY_STATE_FILE = 'proxy_state.json';
+const PROXY_LIST_FILE = 'proxy_list.json';
+let proxyList = [];
+let currentProxyIndex = 0;
+let USE_PROXIES = config.USE_PROXIES || false; // Can be overridden by config.js
 
 async function waitForRateLimit() {
   const now = Date.now();
@@ -22,34 +31,188 @@ async function waitForRateLimit() {
   lastRequestTime = Date.now();
 }
 
-async function scrapeFrontierDirect(origin, destination, date) {
+// Fetch proxy list from Geonode API
+async function fetchProxyList() {
+  return new Promise((resolve, reject) => {
+    console.log('Fetching proxy list from Geonode API...');
+    const url = 'https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc';
+
+    https.get(url, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.data && Array.isArray(json.data)) {
+            // Convert to simpler format
+            const proxies = json.data.map(proxy => ({
+              host: proxy.ip,
+              port: proxy.port,
+              protocols: proxy.protocols || ['http'],
+              country: proxy.country || 'Unknown',
+              lastChecked: proxy.lastChecked,
+              upTime: proxy.upTime || 0,
+              responseTime: proxy.responseTime || 0
+            }));
+
+            // Save to file
+            fs.writeFileSync(PROXY_LIST_FILE, JSON.stringify(proxies, null, 2));
+            console.log(`✓ Fetched ${proxies.length} proxies and saved to ${PROXY_LIST_FILE}`);
+            resolve(proxies);
+          } else {
+            reject(new Error('Invalid response format from proxy API'));
+          }
+        } catch (error) {
+          reject(new Error('Failed to parse proxy list: ' + error.message));
+        }
+      });
+    }).on('error', (error) => {
+      reject(new Error('Failed to fetch proxy list: ' + error.message));
+    });
+  });
+}
+
+// Load proxy state (remembers where we left off)
+function loadProxyState() {
+  try {
+    if (fs.existsSync(PROXY_STATE_FILE)) {
+      const state = JSON.parse(fs.readFileSync(PROXY_STATE_FILE, 'utf8'));
+      currentProxyIndex = state.currentIndex || 0;
+      console.log(`Loaded proxy state: starting at index ${currentProxyIndex}`);
+      return state;
+    }
+  } catch (error) {
+    console.log('No proxy state found, starting from beginning');
+  }
+  return { currentIndex: 0 };
+}
+
+// Save proxy state
+function saveProxyState(index, lastWorkingProxy = null) {
+  const state = {
+    currentIndex: index,
+    lastWorkingProxy: lastWorkingProxy,
+    timestamp: new Date().toISOString()
+  };
+  fs.writeFileSync(PROXY_STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+// Load or fetch proxy list
+async function initializeProxyList() {
+  // Try to load from file first
+  if (fs.existsSync(PROXY_LIST_FILE)) {
+    try {
+      proxyList = JSON.parse(fs.readFileSync(PROXY_LIST_FILE, 'utf8'));
+      console.log(`Loaded ${proxyList.length} proxies from cache`);
+
+      // Check if the list is old (more than 24 hours)
+      const stats = fs.statSync(PROXY_LIST_FILE);
+      const age = Date.now() - stats.mtimeMs;
+      const hoursOld = age / (1000 * 60 * 60);
+
+      if (hoursOld > 24) {
+        console.log(`Proxy list is ${hoursOld.toFixed(1)} hours old, fetching fresh list...`);
+        proxyList = await fetchProxyList();
+      }
+    } catch (error) {
+      console.log('Error loading cached proxy list:', error.message);
+      proxyList = await fetchProxyList();
+    }
+  } else {
+    // Fetch new list
+    proxyList = await fetchProxyList();
+  }
+
+  // Load state
+  loadProxyState();
+
+  return proxyList;
+}
+
+// Get next proxy to try
+function getNextProxy() {
+  if (!proxyList || proxyList.length === 0) {
+    return null;
+  }
+
+  if (currentProxyIndex >= proxyList.length) {
+    console.log('⚠️ Reached end of proxy list, restarting from beginning');
+    currentProxyIndex = 0;
+  }
+
+  const proxy = proxyList[currentProxyIndex];
+  currentProxyIndex++;
+  saveProxyState(currentProxyIndex);
+
+  return proxy;
+}
+
+async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_PROXIES) {
   await waitForRateLimit();
 
   const url = `https://booking.flyfrontier.com/Flight/InternalSelect?o1=${origin}&d1=${destination}&dd1=${date}&adt=1&umnr=false&loy=false&mon=true&ftype=GW`;
 
   console.log(`Direct scraping with Playwright: ${origin} -> ${destination} on ${date}`);
   console.log(`Target URL: ${url}`);
+  console.log(`Proxy mode: ${useProxies ? 'ENABLED' : 'DISABLED'}`);
 
-  let browser;
-  try {
-    // Launch browser with stealth settings to avoid detection
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--disable-dev-shm-usage',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--single-process'  // Required for resource-constrained environments
-      ]
-    });
+  // Initialize proxy list if needed
+  if (useProxies && proxyList.length === 0) {
+    await initializeProxyList();
+  }
 
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-      ignoreHTTPSErrors: true  // Bypass SSL certificate validation
-    });
+  const MAX_PROXY_RETRIES = useProxies ? (config.MAX_PROXY_RETRIES || 10) : 1;
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt < MAX_PROXY_RETRIES) {
+    attempt++;
+    let browser;
+    let currentProxy = null;
+
+    try {
+      // Get proxy if enabled
+      if (useProxies) {
+        currentProxy = getNextProxy();
+        if (!currentProxy) {
+          throw new Error('No proxies available');
+        }
+        console.log(`\n[Attempt ${attempt}/${MAX_PROXY_RETRIES}] Trying proxy: ${currentProxy.host}:${currentProxy.port} (${currentProxy.country})`);
+      } else {
+        console.log(`\n[Attempt ${attempt}/${MAX_PROXY_RETRIES}] Direct connection (no proxy)`);
+      }
+
+      // Launch browser with stealth settings to avoid detection
+      const launchOptions = {
+        headless: true,
+        args: [
+          '--disable-dev-shm-usage',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--single-process'  // Required for resource-constrained environments
+        ]
+      };
+
+      // Add proxy if enabled
+      if (useProxies && currentProxy) {
+        launchOptions.proxy = {
+          server: `http://${currentProxy.host}:${currentProxy.port}`
+        };
+      }
+
+      browser = await chromium.launch(launchOptions);
+
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 },
+        locale: 'en-US',
+        timezoneId: 'America/New_York',
+        ignoreHTTPSErrors: true  // Bypass SSL certificate validation
+      });
 
     const page = await context.newPage();
 
@@ -149,18 +312,29 @@ async function scrapeFrontierDirect(origin, destination, date) {
       console.log('Checking page content for errors...');
 
       // Check for common issues
+      let isBotDetected = false;
       try {
         const pageText = await page.evaluate(() => document.body.innerText);
         const pageTextPreview = pageText.substring(0, 500);
 
         console.log('Page text preview:', pageTextPreview);
 
+        // Check for bot detection patterns
+        if (pageText.toLowerCase().includes('press & hold') ||
+            pageText.toLowerCase().includes('confirm you are') ||
+            pageText.toLowerCase().includes('not a bot')) {
+          console.log('🤖 Bot detection triggered!');
+          isBotDetected = true;
+        }
+
         if (pageText.toLowerCase().includes('access denied') ||
             pageText.toLowerCase().includes('blocked')) {
           console.log('⚠️ Page shows "access denied" or "blocked" message');
+          isBotDetected = true;
         }
         if (pageText.toLowerCase().includes('captcha')) {
           console.log('⚠️ CAPTCHA detected on page');
+          isBotDetected = true;
         }
         if (pageText.toLowerCase().includes('error')) {
           console.log('⚠️ Page shows error message');
@@ -176,6 +350,13 @@ async function scrapeFrontierDirect(origin, destination, date) {
       } catch (e) {
         console.error('Could not check page text:', e.message);
       }
+
+      // If bot detected and using proxies, retry with next proxy
+      if (isBotDetected && useProxies && attempt < MAX_PROXY_RETRIES) {
+        await browser.close();
+        console.log(`🔄 Retrying with next proxy (attempt ${attempt + 1}/${MAX_PROXY_RETRIES})...`);
+        continue; // Go to next proxy
+      }
     }
 
     await browser.close();
@@ -187,12 +368,25 @@ async function scrapeFrontierDirect(origin, destination, date) {
     }
 
     if (!flightDataJSON) {
+      // If using proxies and haven't tried all of them, continue
+      if (useProxies && attempt < MAX_PROXY_RETRIES) {
+        console.log(`⚠️ FlightData not found, trying next proxy...`);
+        lastError = new Error('FlightData not found');
+        continue; // Go to next proxy
+      }
+
       console.log('⚠️ FlightData is null or could not be parsed');
       console.log('💡 Please share the following files for debugging:');
       console.log('   - direct_scraper_output.html');
       console.log('   - direct_scraper_screenshot.png');
       console.log('   - flightdata_raw.txt (if it exists)');
       console.log('   - flightdata_cleaned.txt (if it exists)');
+
+      if (useProxies) {
+        console.log(`\n⚠️ Failed after trying ${attempt} proxies.`);
+        console.log('💡 Try enabling proxy mode again later, or use Scrapfly API instead.');
+      }
+
       return [];
     }
 
@@ -200,47 +394,78 @@ async function scrapeFrontierDirect(origin, destination, date) {
     const flights = parseFlightsFromJSON(flightDataJSON, origin, destination, date);
 
     console.log(`✓ Total GoWild flights found: ${flights.length}`);
+
+    // If we got flights and used a proxy, save it as working
+    if (useProxies && currentProxy && flights.length > 0) {
+      console.log(`✅ Success with proxy: ${currentProxy.host}:${currentProxy.port} (${currentProxy.country})`);
+      saveProxyState(currentProxyIndex, currentProxy);
+    }
+
     return flights;
 
   } catch (error) {
-    if (browser) {
-      await browser.close();
+      if (browser) {
+        await browser.close();
+      }
+
+      console.error('⚠️ Error scraping Frontier:', error.message);
+      lastError = error;
+
+      // If using proxies and have retries left, try next proxy
+      if (useProxies && attempt < MAX_PROXY_RETRIES) {
+        console.log(`🔄 Error occurred, trying next proxy (attempt ${attempt + 1}/${MAX_PROXY_RETRIES})...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between retries
+        continue; // Go to next proxy
+      }
+
+      // No more retries, throw detailed error
+      const errorDetails = {
+        message: error.message,
+        type: 'scraping_error',
+        url: url
+      };
+
+      // Check for specific error types
+      if (error.message.includes('Timeout') || error.message.includes('timeout')) {
+        errorDetails.type = 'timeout';
+        errorDetails.message = 'Request timed out while loading page. This usually means:\n' +
+          '  1. Frontier is blocking automated access\n' +
+          '  2. The page structure has changed\n' +
+          '  3. Network connectivity issues\n' +
+          (useProxies ?
+            `Tried ${attempt} proxies without success.\n` :
+            'Suggestion: Enable proxy mode by setting USE_PROXIES=true, or use Scrapfly API mode instead.\n') +
+          'Check direct_scraper_output.html and direct_scraper_screenshot.png for details.';
+      } else if (error.message.includes('net::ERR_')) {
+        errorDetails.type = 'network_error';
+        errorDetails.message = 'Network error: ' + error.message;
+      } else if (error.message.includes('navigation')) {
+        errorDetails.type = 'navigation_error';
+        errorDetails.message = 'Failed to navigate to page: ' + error.message;
+      }
+
+      console.error('Detailed error:', JSON.stringify(errorDetails, null, 2));
+      console.error('\n💡 TIP: Check these debug files in your project folder:');
+      console.error('   - direct_scraper_output.html (page HTML)');
+      console.error('   - direct_scraper_screenshot.png (page screenshot)');
+
+      const detailedError = new Error(errorDetails.message);
+      detailedError.details = errorDetails;
+      throw detailedError;
     }
-
-    console.error('Error scraping Frontier:', error.message);
-
-    // Provide detailed error information
-    const errorDetails = {
-      message: error.message,
-      type: 'scraping_error',
-      url: url
-    };
-
-    // Check for specific error types
-    if (error.message.includes('Timeout') || error.message.includes('timeout')) {
-      errorDetails.type = 'timeout';
-      errorDetails.message = 'Request timed out while loading page. This usually means:\n' +
-        '  1. Frontier is blocking automated access\n' +
-        '  2. The page structure has changed\n' +
-        '  3. Network connectivity issues\n' +
-        'Suggestion: Use Scrapfly API mode instead, or check direct_scraper_output.html and direct_scraper_screenshot.png for details.';
-    } else if (error.message.includes('net::ERR_')) {
-      errorDetails.type = 'network_error';
-      errorDetails.message = 'Network error: ' + error.message;
-    } else if (error.message.includes('navigation')) {
-      errorDetails.type = 'navigation_error';
-      errorDetails.message = 'Failed to navigate to page: ' + error.message;
-    }
-
-    console.error('Detailed error:', JSON.stringify(errorDetails, null, 2));
-    console.error('\n💡 TIP: Check these debug files in your project folder:');
-    console.error('   - direct_scraper_output.html (page HTML)');
-    console.error('   - direct_scraper_screenshot.png (page screenshot)');
-
-    const detailedError = new Error(errorDetails.message);
-    detailedError.details = errorDetails;
-    throw detailedError;
   }
+
+  // If we get here, all retries failed
+  if (lastError) {
+    console.error(`\n❌ Failed after ${attempt} attempts.`);
+    if (useProxies) {
+      console.error(`💡 All ${attempt} proxies failed. The proxy list may need to be refreshed.`);
+      console.error('   Delete proxy_list.json to fetch a fresh list on next run.');
+    }
+    throw lastError;
+  }
+
+  return [];
 }
 
 function extractFlightDataFromHTML(html) {
@@ -394,6 +619,26 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
   return flights;
 }
 
+// Function to enable/disable proxy mode
+function setProxyMode(enabled) {
+  USE_PROXIES = enabled;
+  console.log(`Proxy mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  return USE_PROXIES;
+}
+
+// Function to get proxy status
+function getProxyStatus() {
+  return {
+    enabled: USE_PROXIES,
+    totalProxies: proxyList.length,
+    currentIndex: currentProxyIndex,
+    hasProxyList: proxyList.length > 0
+  };
+}
+
 module.exports = {
-  scrapeFrontierDirect
+  scrapeFrontierDirect,
+  setProxyMode,
+  getProxyStatus,
+  initializeProxyList
 };

@@ -5,3 +5,13 @@ debug_output.html
 .env
 .DS_Store
 npm-debug.log*
+
+# Proxy files
+proxy_list.json
+proxy_state.json
+
+# Scraper debug output
+direct_scraper_output.html
+direct_scraper_screenshot.png
+flightdata_*.txt
+flightdata_*.json
