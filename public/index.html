@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -30,36 +30,29 @@
         }
 
         .header h1 {
-            font-size: 2.5em;
+            font-size: 2.5rem;
             margin-bottom: 10px;
         }
 
         .header p {
-            font-size: 1.1em;
+            font-size: 1.1rem;
             opacity: 0.9;
         }
 
         .search-card {
             background: white;
-            border-radius: 15px;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             margin-bottom: 30px;
         }
 
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+        .form-group {
             margin-bottom: 20px;
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
         .form-group label {
+            display: block;
             font-weight: 600;
             margin-bottom: 8px;
             color: #333;
@@ -67,10 +60,11 @@
 
         .form-group select,
         .form-group input {
+            width: 100%;
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 1rem;
             transition: border-color 0.3s;
         }
 
@@ -80,101 +74,126 @@
             border-color: #667eea;
         }
 
-        .options-group {
-            display: flex;
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
-            align-items: center;
+        }
+
+        .method-selector {
+            display: flex;
+            gap: 15px;
             margin-bottom: 20px;
-            flex-wrap: wrap;
+        }
+
+        .method-option {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .method-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .method-option.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .method-option input[type="radio"] {
+            display: none;
+        }
+
+        .method-option .method-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        .method-option .method-desc {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .options-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
         }
 
         .option-item {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .option-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
 
         .option-item label {
-            font-weight: 500;
-            color: #555;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        button {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            margin: 0;
+            font-weight: normal;
         }
 
-        .btn-primary {
+        .option-help {
+            color: #666;
+            font-size: 0.85rem;
+            margin-left: 30px;
+            margin-top: 5px;
+        }
+
+        .proxy-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        .search-button {
+            width: 100%;
+            padding: 15px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #333;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: #e0e0e0;
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            color: #667eea;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
             font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 20px;
         }
 
-        .loading.active {
-            display: block;
+        .search-button:hover {
+            transform: translateY(-2px);
         }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .search-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .results-card {
             background: white;
-            border-radius: 15px;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             display: none;
         }
 
-        .results-card.active {
+        .results-card.show {
             display: block;
         }
 
@@ -186,25 +205,29 @@
 
         .results-header h2 {
             color: #333;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
 
         .results-meta {
             color: #666;
-            font-size: 0.9em;
+            font-size: 0.9rem;
+        }
+
+        .flight-list {
+            display: grid;
+            gap: 15px;
         }
 
         .flight-card {
             border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 20px;
-            margin-bottom: 15px;
             transition: all 0.3s;
         }
 
         .flight-card:hover {
             border-color: #667eea;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
         }
 
         .flight-header {
@@ -214,20 +237,25 @@
             margin-bottom: 15px;
         }
 
-        .flight-route {
+        .flight-time {
             display: flex;
             align-items: center;
             gap: 15px;
-            font-size: 1.2em;
+        }
+
+        .time {
+            font-size: 1.5rem;
             font-weight: 600;
+            color: #333;
         }
 
         .flight-arrow {
             color: #667eea;
+            font-size: 1.2rem;
         }
 
         .flight-price {
-            font-size: 1.5em;
+            font-size: 1.8rem;
             font-weight: 700;
             color: #667eea;
         }
@@ -236,18 +264,19 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 15px;
-            color: #666;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
         }
 
-        .flight-detail-item {
+        .detail-item {
             display: flex;
             flex-direction: column;
         }
 
         .detail-label {
-            font-size: 0.85em;
-            color: #999;
-            margin-bottom: 3px;
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 4px;
         }
 
         .detail-value {
@@ -255,17 +284,15 @@
             color: #333;
         }
 
-        .no-results {
+        .no-flights {
             text-align: center;
             padding: 40px;
             color: #666;
         }
 
-        .no-results svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
+        .no-flights-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
         }
 
         .error-message {
@@ -273,53 +300,77 @@
             border: 2px solid #fcc;
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 20px;
             color: #c33;
-        }
-
-        .success-message {
-            background: #efe;
-            border: 2px solid #cfc;
-            border-radius: 8px;
-            padding: 15px;
             margin-bottom: 20px;
-            color: #3c3;
         }
 
-        .badge {
+        .error-message strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .cache-badge {
             display: inline-block;
-            padding: 4px 10px;
+            background: #ffa726;
+            color: white;
+            padding: 4px 12px;
             border-radius: 12px;
-            font-size: 0.8em;
+            font-size: 0.85rem;
             font-weight: 600;
+            margin-left: 10px;
         }
 
-        .badge-cached {
-            background: #fff3cd;
-            color: #856404;
-        }
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
 
-        .badge-fresh {
-            background: #d4edda;
-            color: #155724;
-        }
+            .method-selector {
+                flex-direction: column;
+            }
 
-        .badge-api {
-            background: #d1ecf1;
-            color: #0c5460;
+            .flight-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>✈️ Frontier GoWild Scraper</h1>
-            <p>Search for GoWild flight deals on Frontier Airlines</p>
+            <h1>✈️ Frontier GoWild Flight Scraper</h1>
+            <p>Search for GoWild flight availability across 140+ airports</p>
         </div>
 
         <div class="search-card">
             <form id="searchForm">
-                <div class="form-grid">
+                <div class="form-row">
                     <div class="form-group">
                         <label for="origin">Origin Airport</label>
                         <select id="origin" required>
@@ -333,122 +384,112 @@
                             <option value="">Select destination...</option>
                         </select>
                     </div>
+                </div>
 
-                    <div class="form-group">
-                        <label for="date">Travel Date</label>
-                        <input type="date" id="date" required>
+                <div class="form-group">
+                    <label for="date">Departure Date</label>
+                    <input type="date" id="date" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Scraping Method</label>
+                    <div class="method-selector">
+                        <label class="method-option selected">
+                            <input type="radio" name="method" value="api" checked>
+                            <div class="method-title">Scrapfly API</div>
+                            <div class="method-desc">Most reliable (recommended)</div>
+                        </label>
+                        <label class="method-option">
+                            <input type="radio" name="method" value="direct">
+                            <div class="method-title">Direct Scraping</div>
+                            <div class="method-desc">Uses Playwright + proxies</div>
+                        </label>
                     </div>
                 </div>
 
-                <div class="options-group">
-                    <div class="option-item">
-                        <input type="radio" id="methodApi" name="method" value="api" checked>
-                        <label for="methodApi">🚀 Scrapfly API (Recommended - Works Best)</label>
-                    </div>
-                    <div class="option-item">
-                        <input type="radio" id="methodDirect" name="method" value="direct">
-                        <label for="methodDirect">⚠️ Direct Scraping (Usually Blocked)</label>
-                    </div>
+                <div class="options-section">
                     <div class="option-item">
                         <input type="checkbox" id="useCache" checked>
-                        <label for="useCache">📦 Use cached data (if available)</label>
+                        <label for="useCache">Use cached data (6-hour cache)</label>
+                    </div>
+
+                    <div id="proxyOptions" class="proxy-section" style="display: none;">
+                        <div class="option-item">
+                            <input type="checkbox" id="useProxies">
+                            <label for="useProxies">🌐 Use Proxy Rotation</label>
+                        </div>
+                        <div class="option-help">
+                            Automatically tries different proxies if bot detection is triggered
+                        </div>
                     </div>
                 </div>
 
-                <div class="options-group" id="proxyOptions" style="display: none; padding: 15px; background: #f9f9f9; border-radius: 8px; margin-top: 10px;">
-                    <div class="option-item">
-                        <input type="checkbox" id="useProxies">
-                        <label for="useProxies">🌐 Use Proxy Rotation (bypasses bot detection)</label>
-                    </div>
-                    <small style="color: #666; margin-left: 28px; display: block; margin-top: 5px;">
-                        Automatically tries different proxies if bot detection is triggered
-                    </small>
-                </div>
-
-                <div class="button-group">
-                    <button type="submit" class="btn-primary">🔍 Search Flights</button>
-                </div>
+                <button type="submit" class="search-button" id="searchButton">
+                    Search Flights
+                </button>
             </form>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Searching for flights...</p>
-            </div>
         </div>
 
-        <div class="results-card" id="results">
-            <div class="results-header">
-                <h2 id="resultsTitle">Search Results</h2>
-                <div class="results-meta" id="resultsMeta"></div>
-            </div>
+        <div class="results-card" id="resultsCard">
             <div id="resultsContent"></div>
         </div>
     </div>
 
     <script>
-        // Load airports
+        // Global state
+        let airports = {};
+
+        // Load airports on page load
         async function loadAirports() {
             try {
                 const response = await fetch('/api/airports');
-                const airports = await response.json();
+                airports = await response.json();
 
                 const originSelect = document.getElementById('origin');
                 const destSelect = document.getElementById('destination');
 
-                // Sort airports by city name, then by code
-                const sortedAirports = Object.entries(airports).sort((a, b) => {
-                    const [codeA, cityA] = a;
-                    const [codeB, cityB] = b;
+                // Sort airports by city name
+                const sortedAirports = Object.entries(airports).sort((a, b) =>
+                    a[1].localeCompare(b[1])
+                );
 
-                    // First compare by city name
-                    const cityCompare = cityA.localeCompare(cityB);
-                    if (cityCompare !== 0) {
-                        return cityCompare;
-                    }
-
-                    // If cities are the same, compare by airport code
-                    return codeA.localeCompare(codeB);
+                sortedAirports.forEach(([code, city]) => {
+                    originSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+                    destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
                 });
-
-                sortedAirports.forEach(([code, name]) => {
-                    // Display format: "City Name (CODE)"
-                    const displayText = `${name} (${code})`;
-                    const option1 = new Option(displayText, code);
-                    const option2 = new Option(displayText, code);
-                    originSelect.add(option1);
-                    destSelect.add(option2);
-                });
-
-                // Set default date to tomorrow
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                document.getElementById('date').value = tomorrow.toISOString().split('T')[0];
-                document.getElementById('date').min = new Date().toISOString().split('T')[0];
-
             } catch (error) {
-                console.error('Error loading airports:', error);
-                alert('Error loading airports. Please refresh the page.');
+                console.error('Failed to load airports:', error);
             }
         }
 
-        // Toggle proxy options visibility based on method selection
-        function toggleProxyOptions() {
-            const method = document.querySelector('input[name="method"]:checked').value;
-            const proxyOptions = document.getElementById('proxyOptions');
+        // Set minimum date to today
+        const dateInput = document.getElementById('date');
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.min = today;
+        dateInput.value = today;
 
-            if (method === 'direct') {
-                proxyOptions.style.display = 'block';
-            } else {
-                proxyOptions.style.display = 'none';
-            }
-        }
+        // Method selector toggle
+        document.querySelectorAll('.method-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.method-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                this.querySelector('input[type="radio"]').checked = true;
 
-        // Add event listeners to method radio buttons
-        document.querySelectorAll('input[name="method"]').forEach(radio => {
-            radio.addEventListener('change', toggleProxyOptions);
+                // Show/hide proxy options based on method
+                const selectedMethod = this.querySelector('input[type="radio"]').value;
+                const proxyOptions = document.getElementById('proxyOptions');
+
+                if (selectedMethod === 'direct') {
+                    proxyOptions.style.display = 'block';
+                } else {
+                    proxyOptions.style.display = 'none';
+                }
+            });
         });
 
-        // Search flights
+        // Form submission
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -459,10 +500,19 @@
             const useCache = document.getElementById('useCache').checked;
             const useProxies = document.getElementById('useProxies').checked;
 
+            const resultsCard = document.getElementById('resultsCard');
+            const resultsContent = document.getElementById('resultsContent');
+            const searchButton = document.getElementById('searchButton');
+
             // Show loading
-            document.getElementById('loading').classList.add('active');
-            document.getElementById('results').classList.remove('active');
-            document.querySelector('.btn-primary').disabled = true;
+            resultsCard.classList.add('show');
+            resultsContent.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Searching for flights...</p>
+                </div>
+            `;
+            searchButton.disabled = true;
 
             try {
                 const response = await fetch('/api/search', {
@@ -482,144 +532,94 @@
 
                 const data = await response.json();
 
-                // Hide loading
-                document.getElementById('loading').classList.remove('active');
-                document.querySelector('.btn-primary').disabled = false;
+                if (!response.ok) {
+                    throw new Error(data.error || 'Search failed');
+                }
 
-                // Display results
                 displayResults(data, origin, destination, date);
 
             } catch (error) {
-                document.getElementById('loading').classList.remove('active');
-                document.querySelector('.btn-primary').disabled = false;
-
-                // Show error in results section
-                const resultsCard = document.getElementById('results');
-                const resultsContent = document.getElementById('resultsContent');
-                resultsCard.classList.add('active');
-
                 resultsContent.innerHTML = `
                     <div class="error-message">
-                        <h3>⚠️ Error Searching Flights</h3>
-                        <p><strong>${error.message}</strong></p>
-                        <p>Please check the console for more details or try again.</p>
+                        <strong>Error:</strong>
+                        ${error.message}
                     </div>
                 `;
+            } finally {
+                searchButton.disabled = false;
             }
         });
 
-        // Display results
         function displayResults(data, origin, destination, date) {
-            const resultsCard = document.getElementById('results');
-            const resultsTitle = document.getElementById('resultsTitle');
-            const resultsMeta = document.getElementById('resultsMeta');
             const resultsContent = document.getElementById('resultsContent');
+            const { flights, cached, cachedAt, error } = data;
 
-            resultsCard.classList.add('active');
+            let html = `
+                <div class="results-header">
+                    <h2>
+                        ${origin} → ${destination} on ${date}
+                        ${cached ? '<span class="cache-badge">CACHED</span>' : ''}
+                    </h2>
+                    <div class="results-meta">
+                        ${flights.length} flight${flights.length !== 1 ? 's' : ''} found
+                        ${cached ? ` • Cached at ${new Date(cachedAt).toLocaleString()}` : ''}
+                    </div>
+                </div>
+            `;
 
-            // Set title
-            resultsTitle.textContent = `${origin} → ${destination} on ${date}`;
-
-            // Set meta info
-            let metaHTML = `Found ${data.flights.length} flight(s)`;
-            if (data.cached) {
-                metaHTML += ` <span class="badge badge-cached">Cached</span>`;
-                metaHTML += ` <small>(Cached at: ${new Date(data.cachedAt).toLocaleString()})</small>`;
-            } else {
-                metaHTML += ` <span class="badge badge-fresh">Fresh</span>`;
+            if (error) {
+                html += `
+                    <div class="error-message">
+                        <strong>Warning:</strong>
+                        ${error}
+                    </div>
+                `;
             }
 
-            // Display detailed error information
-            if (data.error) {
-                let errorHTML = `<div class="error-message">
-                    <h4>⚠️ ${data.error}</h4>`;
-
-                if (data.details || data.errorDetails) {
-                    const details = data.details || data.errorDetails;
-
-                    if (details.type) {
-                        errorHTML += `<p><strong>Error Type:</strong> ${details.type}</p>`;
-                    }
-                    if (details.statusCode) {
-                        errorHTML += `<p><strong>Status Code:</strong> ${details.statusCode} ${details.statusText || ''}</p>`;
-                    }
-                    if (details.url) {
-                        errorHTML += `<p><strong>URL:</strong> <small>${details.url}</small></p>`;
-                    }
-                }
-
-                if (data.suggestion) {
-                    errorHTML += `<p><strong>💡 Suggestion:</strong> ${data.suggestion}</p>`;
-                }
-
-                errorHTML += '</div>';
-                metaHTML = errorHTML + metaHTML;
-            }
-
-            resultsMeta.innerHTML = metaHTML;
-
-            // Display flights
-            if (data.flights.length === 0) {
-                resultsContent.innerHTML = `
-                    <div class="no-results">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                        </svg>
-                        <h3>No Flights Available</h3>
-                        <p>No GoWild flights were found for this route on the selected date.</p>
+            if (flights.length === 0) {
+                html += `
+                    <div class="no-flights">
+                        <div class="no-flights-icon">😔</div>
+                        <h3>No GoWild flights found</h3>
+                        <p>Try a different date or route</p>
                     </div>
                 `;
             } else {
-                resultsContent.innerHTML = data.flights.map(flight => `
-                    <div class="flight-card">
-                        <div class="flight-header">
-                            <div class="flight-route">
-                                <span>${flight.origin}</span>
-                                <span class="flight-arrow">→</span>
-                                <span>${flight.destination}</span>
-                            </div>
-                            <div class="flight-price">$${flight.price}</div>
-                        </div>
-                        <div class="flight-details">
-                            <div class="flight-detail-item">
-                                <span class="detail-label">Departure</span>
-                                <span class="detail-value">${flight.departure_time}</span>
-                            </div>
-                            <div class="flight-detail-item">
-                                <span class="detail-label">Arrival</span>
-                                <span class="detail-value">${flight.arrival_time}</span>
-                            </div>
-                            <div class="flight-detail-item">
-                                <span class="detail-label">Duration</span>
-                                <span class="detail-value">${flight.duration || 'Unknown'}</span>
-                            </div>
-                            <div class="flight-detail-item">
-                                <span class="detail-label">Stops</span>
-                                <span class="detail-value">${flight.stops || 'Unknown'}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
+                html += '<div class="flight-list">';
 
-        // Test Scrapfly connection
-        async function testScrapfly() {
-            try {
-                const response = await fetch('/api/test-scrapfly');
-                const data = await response.json();
+                flights.forEach(flight => {
+                    html += `
+                        <div class="flight-card">
+                            <div class="flight-header">
+                                <div class="flight-time">
+                                    <span class="time">${flight.departure_time}</span>
+                                    <span class="flight-arrow">→</span>
+                                    <span class="time">${flight.arrival_time}</span>
+                                </div>
+                                <div class="flight-price">$${flight.price}</div>
+                            </div>
+                            <div class="flight-details">
+                                <div class="detail-item">
+                                    <span class="detail-label">Stops</span>
+                                    <span class="detail-value">${flight.stops}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Duration</span>
+                                    <span class="detail-value">${flight.duration || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Availability</span>
+                                    <span class="detail-value">${flight.available ? '✅ Available' : '❌ Sold Out'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
 
-                if (data.success) {
-                    alert(`✓ Scrapfly connected successfully!\n\n` +
-                          `API Cost: ${data.cost || 'N/A'}\n` +
-                          `Remaining Credit: ${data.remainingCredit || 'N/A'}\n\n` +
-                          `You're ready to scrape flights!`);
-                } else {
-                    alert('✗ Scrapfly connection failed:\n' + data.error);
-                }
-            } catch (error) {
-                alert('Error testing Scrapfly: ' + error.message);
+                html += '</div>';
             }
+
+            resultsContent.innerHTML = html;
         }
 
         // Initialize
