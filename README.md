@@ -32,13 +32,22 @@ Open `http://localhost:3000` in your browser.
 - ✅ **UI** - City-sorted airports, real-time results
 - ✅ **Error Handling** - Detailed error messages and suggestions
 
-### Why Direct Scraping Doesn't Work
-Direct scraping fails because:
-1. **Frontier blocks automated requests** (403 Forbidden)
-2. **JavaScript execution required** - FlightData loads via JS
-3. **Would need Puppeteer** - Headless Chrome to render page
+### Direct Scraping Status
+Direct scraping now uses **Playwright** with stealth plugins:
+- ✅ **Playwright Installed** - Headless Chromium with anti-detection
+- ✅ **JavaScript Rendering** - Extracts FlightData from rendered pages
+- ✅ **Stealth Mode** - Uses playwright-extra with stealth plugins
+- ⚠️ **Still Blocked** - Frontier's bot protection detects automation
 
-**Solution:** Scrapfly already does all of this! It renders JavaScript, bypasses bot protection, and returns the fully rendered page. Just use Scrapfly mode (default).
+**Why Frontier Still Blocks It:**
+Frontier uses sophisticated bot detection that identifies automation even with stealth plugins. The containerized environment may make detection easier.
+
+**Options:**
+1. **Scrapfly API (Recommended)** - Advanced anti-scraping protection (ASP) with residential proxies
+2. **Local Machine** - Direct scraping might work better on your local machine
+3. **Residential Proxies** - Could be added to Playwright for better success rate
+
+**Recommendation:** Use Scrapfly API mode (default) for reliable results.
 
 ## 🔧 How It Works
 
@@ -86,9 +95,8 @@ Content-Type: application/json
   "origin": "ORD",
   "destination": "CUN",
   "date": "2025-11-15",
-  "method": "api",          # "direct" or "api"
-  "useCache": true,         # Use cached data if available
-  "robotId": "rob_xxxxx"    # Browse.ai robot ID (optional)
+  "method": "api",          # "direct" (Playwright) or "api" (Scrapfly)
+  "useCache": true          # Use cached data if available (6-hour cache)
 }
 ```
 
@@ -97,9 +105,9 @@ Content-Type: application/json
 GET /api/airports
 ```
 
-### Test Browse.ai Connection
+### Test Scrapfly Connection
 ```bash
-GET /api/test-browseai
+GET /api/test-scrapfly
 ```
 
 ## Database Schema
@@ -123,14 +131,17 @@ Tracks all scraping attempts for debugging and analytics.
 ## Project Structure
 
 ```
-├── server.js           # Express server and API routes
-├── database.js         # SQLite database functions
-├── scraper.js          # Direct scraping logic
-├── browseai.js         # Browse.ai API integration
-├── package.json        # Dependencies
-├── flights.db          # SQLite database (created on first run)
+├── server.js                    # Express server and API routes
+├── database.js                  # SQLite database functions
+├── scraper.js                   # Direct scraping with Playwright (blocked by Frontier)
+├── scrapfly.js                  # Scrapfly API integration (recommended)
+├── browseai.js                  # Browse.ai API integration (deprecated)
+├── package.json                 # Dependencies (includes playwright, playwright-extra)
+├── flights.db                   # SQLite database (created on first run)
+├── test-direct-scraper.js       # Test script for direct scraping
+├── test-playwright-basic.js     # Test script for Playwright functionality
 └── public/
-    └── index.html      # Frontend interface
+    └── index.html               # Frontend interface
 ```
 
 ## Next Steps
@@ -160,20 +171,32 @@ The application supports all 882 Frontier routes. See the full list in `server.j
 
 ## Troubleshooting
 
-### Direct Scraping Returns 403
-This is expected - Frontier blocks automated requests. Use Browse.ai API mode instead.
+### Direct Scraping Shows "Access Denied"
+**Expected behavior** - Frontier's bot protection blocks automated requests even with Playwright stealth mode.
 
-### Browse.ai API Fails
-1. Check your API key is correct
-2. Verify you have credits remaining (currently on free plan with 50 credits)
-3. Check that your robot is configured correctly
-4. Use the "Test Browse.ai" button to verify connection
+**Solutions:**
+1. Use **Scrapfly API mode** (recommended - works reliably)
+2. Try running on your **local machine** instead of in a container
+3. Consider adding **residential proxies** to Playwright
+
+### Scrapfly API Fails
+1. Check your API key is correct in `scrapfly.js`
+2. Verify you have credits remaining
+3. Check internet connectivity
+4. Review error logs for timeout or rejection codes
 
 ### No Flights Found
 1. Check that the route exists in Frontier's schedule
 2. Verify the date format is YYYY-MM-DD
 3. Check if flights are actually available on that date
-4. Review `debug_output.html` if using direct scraping (though it won't work due to 403)
+4. Review `scrapfly_output.html` or `direct_scraper_output.html` for debugging
+
+### Playwright Crashes
+If direct scraping crashes the browser:
+1. Already using `--single-process` flag for containers
+2. May need more system resources
+3. Try increasing timeout values
+4. Use Scrapfly API instead
 
 ## Contributing
 
