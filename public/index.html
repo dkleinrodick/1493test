@@ -454,10 +454,14 @@
                     a[1].localeCompare(b[1])
                 );
 
+                // Populate ONLY origin dropdown initially
                 sortedAirports.forEach(([code, city]) => {
                     originSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
-                    destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
                 });
+
+                // Keep destination empty with placeholder until origin is selected
+                destSelect.innerHTML = '<option value="">First select an origin...</option>';
+                destSelect.disabled = true;
 
                 // Add change listener to filter destinations
                 originSelect.addEventListener('change', filterDestinations);
@@ -484,11 +488,15 @@
             const destSelect = document.getElementById('destination');
             const selectedOrigin = originSelect.value;
 
-            // If no origin selected, show all airports
+            // If no origin selected, disable destination dropdown
             if (!selectedOrigin) {
-                populateAllDestinations();
+                destSelect.innerHTML = '<option value="">First select an origin...</option>';
+                destSelect.disabled = true;
                 return;
             }
+
+            // Enable destination dropdown
+            destSelect.disabled = false;
 
             // Get valid destinations for this origin
             const validDestinations = routes[selectedOrigin] || [];
@@ -498,7 +506,7 @@
             destSelect.innerHTML = '<option value="">Select destination...</option>';
 
             if (validDestinations.length > 0) {
-                // Show only valid destinations
+                // Show only valid destinations for this origin
                 const sortedDests = validDestinations.sort().map(code => ({
                     code,
                     city: airports[code] || code
@@ -513,9 +521,9 @@
                     destSelect.value = currentValue;
                 }
             } else {
-                // No known routes - show all airports with a note
-                populateAllDestinations();
-                // Could add a note here that these are unverified routes
+                // No known routes for this origin - show warning
+                destSelect.innerHTML = '<option value="">No known routes from ' + selectedOrigin + '</option>';
+                destSelect.disabled = true;
             }
         }
 
