@@ -36,7 +36,7 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
       asp: true,              // Anti Scraping Protection - bypasses bot detection
       render_js: true,        // Render JavaScript
       country: 'us',          // Use US proxy
-      rendering_wait: 5000,   // Wait 5 seconds to ensure FlightData loads
+      rendering_wait: 3000,   // Wait 3 seconds to ensure FlightData loads
       retry: true,            // Auto-retry on failure
       // Inject FlightData into page body for easier extraction (reduces parsing complexity)
       js: Buffer.from(`
@@ -54,7 +54,7 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
     console.log('Calling Scrapfly API...');
 
     const response = await axios.get(scrapflyUrl, {
-      timeout: 65000, // Slightly longer than Scrapfly's timeout
+      timeout: 120000, // 120 seconds timeout (increased from 65s)
       headers: {
         'Accept': 'application/json'
       }

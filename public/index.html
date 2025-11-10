@@ -429,9 +429,14 @@
                     </div>
                 </div>
 
-                <button type="submit" class="search-button" id="searchButton">
-                    Search Flights
-                </button>
+                <div class="form-row" style="gap: 10px;">
+                    <button type="submit" class="search-button" id="searchButton">
+                        Search Single Route
+                    </button>
+                    <button type="button" class="search-button bulk-button" id="bulkSearchButton" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        Search All Routes from Origin
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -573,6 +578,77 @@
             });
         });
 
+        // Bulk search button handler
+        document.getElementById('bulkSearchButton').addEventListener('click', async () => {
+            const origin = document.getElementById('origin').value;
+            const date = document.getElementById('date').value;
+            const method = document.querySelector('input[name="method"]:checked').value;
+            const useCache = document.getElementById('useCache').checked;
+
+            if (!origin) {
+                alert('Please select an origin airport');
+                return;
+            }
+
+            if (!date) {
+                alert('Please select a departure date');
+                return;
+            }
+
+            const resultsCard = document.getElementById('resultsCard');
+            const resultsContent = document.getElementById('resultsContent');
+            const searchButton = document.getElementById('searchButton');
+            const bulkButton = document.getElementById('bulkSearchButton');
+
+            // Show loading
+            resultsCard.classList.add('show');
+            resultsContent.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Searching all routes from ${airportsData[origin]} (${origin})...</p>
+                    <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">
+                        This may take several minutes. Processing ${routesData[origin]?.length || 0} destinations with ${useCache ? 'cache enabled' : 'fresh data'}...
+                    </p>
+                </div>
+            `;
+            searchButton.disabled = true;
+            bulkButton.disabled = true;
+
+            try {
+                const response = await fetch('/api/search-bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        origin,
+                        date,
+                        method,
+                        useCache
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Bulk search failed');
+                }
+
+                displayBulkResults(data, origin, date);
+
+            } catch (error) {
+                resultsContent.innerHTML = `
+                    <div class="error-message">
+                        <strong>Error:</strong>
+                        ${error.message}
+                    </div>
+                `;
+            } finally {
+                searchButton.disabled = false;
+                bulkButton.disabled = false;
+            }
+        });
+
         // Form submission
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -704,6 +780,117 @@
                 });
 
                 html += '</div>';
+            }
+
+            resultsContent.innerHTML = html;
+        }
+
+        function displayBulkResults(data, origin, date) {
+            const resultsContent = document.getElementById('resultsContent');
+            const { totalRoutes, totalFlights, cached, scraped, errors, results } = data;
+
+            const originCity = airportsData[origin] || origin;
+
+            // Group results by destination
+            const routesWithFlights = results.filter(r => r.flights.length > 0);
+            const routesWithoutFlights = results.filter(r => r.flights.length === 0 && !r.error);
+            const routesWithErrors = results.filter(r => r.error);
+
+            let html = `
+                <div class="results-header">
+                    <h2>All Routes from ${originCity} (${origin}) on ${date}</h2>
+                    <div class="results-meta">
+                        ${totalRoutes} routes checked • ${totalFlights} total flights found<br>
+                        ${cached} from cache • ${scraped} freshly scraped • ${errors} errors
+                    </div>
+                </div>
+            `;
+
+            // Show routes with flights
+            if (routesWithFlights.length > 0) {
+                html += `<h3 style="margin: 20px 0 10px; color: #333;">Routes with Available Flights (${routesWithFlights.length})</h3>`;
+                html += '<div class="flight-list">';
+
+                routesWithFlights.forEach(route => {
+                    const destCity = airportsData[route.destination] || route.destination;
+                    const cacheStatus = route.cached ? '<span class="cache-badge">CACHED</span>' : '';
+
+                    html += `
+                        <div class="flight-card">
+                            <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e0e0e0;">
+                                <h4 style="color: #667eea; font-size: 1.2rem;">
+                                    ${origin} → ${destCity} (${route.destination}) ${cacheStatus}
+                                </h4>
+                                <div style="color: #666; font-size: 0.9rem;">${route.flights.length} flight${route.flights.length !== 1 ? 's' : ''} found</div>
+                            </div>
+                    `;
+
+                    route.flights.forEach(flight => {
+                        html += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
+                                <div class="flight-time">
+                                    <span class="time" style="font-size: 1.2rem;">${flight.departure_time}</span>
+                                    <span class="flight-arrow">→</span>
+                                    <span class="time" style="font-size: 1.2rem;">${flight.arrival_time}</span>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div class="flight-price" style="font-size: 1.5rem;">$${flight.price}</div>
+                                    <div style="font-size: 0.85rem; color: #666;">${flight.stops} • ${flight.duration || 'N/A'}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += '</div>';
+                });
+
+                html += '</div>';
+            }
+
+            // Show routes without flights
+            if (routesWithoutFlights.length > 0) {
+                html += `
+                    <details style="margin: 20px 0;">
+                        <summary style="cursor: pointer; padding: 10px; background: #f5f5f5; border-radius: 8px; font-weight: 600;">
+                            Routes with No Flights (${routesWithoutFlights.length})
+                        </summary>
+                        <div style="padding: 10px; font-size: 0.9rem; color: #666;">
+                            ${routesWithoutFlights.map(r => `${origin} → ${airportsData[r.destination]} (${r.destination})`).join(', ')}
+                        </div>
+                    </details>
+                `;
+            }
+
+            // Show errors
+            if (routesWithErrors.length > 0) {
+                html += `
+                    <details style="margin: 20px 0;">
+                        <summary style="cursor: pointer; padding: 10px; background: #fee; border: 1px solid #fcc; border-radius: 8px; font-weight: 600; color: #c33;">
+                            Routes with Errors (${routesWithErrors.length})
+                        </summary>
+                        <div style="padding: 10px; font-size: 0.9rem;">
+                `;
+
+                routesWithErrors.forEach(r => {
+                    html += `
+                        <div style="padding: 5px 0; border-bottom: 1px solid #fdd;">
+                            <strong>${origin} → ${airportsData[r.destination]} (${r.destination}):</strong>
+                            <span style="color: #c33;">${r.error}</span>
+                        </div>
+                    `;
+                });
+
+                html += '</div></details>';
+            }
+
+            if (totalFlights === 0 && errors === 0) {
+                html += `
+                    <div class="no-flights">
+                        <div class="no-flights-icon">😔</div>
+                        <h3>No GoWild flights found</h3>
+                        <p>No flights available on any route from ${originCity} on ${date}</p>
+                    </div>
+                `;
             }
 
             resultsContent.innerHTML = html;

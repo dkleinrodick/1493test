@@ -270,6 +270,161 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// Bulk search - search all routes from an origin airport
+app.post('/api/search-bulk', async (req, res) => {
+  const { origin, date, useCache, method } = req.body;
+
+  if (!origin || !date) {
+    return res.status(400).json({
+      error: 'Missing required parameters: origin and date'
+    });
+  }
+
+  try {
+    // Get all valid destinations for this origin
+    const routes = getAllRoutes();
+    const destinations = routes[origin] || [];
+
+    if (destinations.length === 0) {
+      return res.status(404).json({
+        error: `No known routes from ${origin}`,
+        results: []
+      });
+    }
+
+    console.log(`\n🔍 Bulk search: ${origin} to ${destinations.length} destinations on ${date}`);
+    console.log(`Cache mode: ${useCache ? 'enabled' : 'disabled'}`);
+    console.log(`Method: ${method || 'scrapfly'}`);
+
+    const results = [];
+    const scrapeMethod = method || 'api';
+    const MAX_CONCURRENT = 5; // Scrapfly API limit
+    let completed = 0;
+    let cached = 0;
+    let scraped = 0;
+    let errors = 0;
+
+    // Process destinations with concurrency limit
+    async function processBatch(destBatch) {
+      const promises = destBatch.map(async (destination) => {
+        try {
+          // Check cache first if enabled
+          if (useCache !== false) {
+            const cachedFlights = getCachedFlights(origin, destination, date);
+            if (cachedFlights.length > 0) {
+              console.log(`  ✓ ${origin}-${destination}: ${cachedFlights.length} flights (cached)`);
+              cached++;
+              completed++;
+              return {
+                origin,
+                destination,
+                flights: cachedFlights,
+                cached: true,
+                cachedAt: cachedFlights[0].scraped_at
+              };
+            }
+          }
+
+          // Scrape fresh data
+          let flights = [];
+          try {
+            if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
+              flights = await scrapeFrontierWithScrapfly(origin, destination, date);
+            } else {
+              flights = await scrapeFrontierDirect(origin, destination, date, false);
+            }
+
+            // Save to database
+            clearFlights(origin, destination, date);
+            for (const flight of flights) {
+              upsertFlight(flight);
+            }
+
+            console.log(`  ✓ ${origin}-${destination}: ${flights.length} flights (scraped)`);
+            scraped++;
+            completed++;
+
+            return {
+              origin,
+              destination,
+              flights,
+              cached: false,
+              scrapedAt: new Date().toISOString()
+            };
+
+          } catch (scrapeError) {
+            console.error(`  ✗ ${origin}-${destination}: ${scrapeError.message}`);
+            errors++;
+            completed++;
+
+            return {
+              origin,
+              destination,
+              flights: [],
+              error: scrapeError.message,
+              cached: false
+            };
+          }
+
+        } catch (error) {
+          console.error(`  ✗ ${origin}-${destination}: ${error.message}`);
+          errors++;
+          completed++;
+
+          return {
+            origin,
+            destination,
+            flights: [],
+            error: error.message,
+            cached: false
+          };
+        }
+      });
+
+      return Promise.all(promises);
+    }
+
+    // Process in batches of MAX_CONCURRENT
+    for (let i = 0; i < destinations.length; i += MAX_CONCURRENT) {
+      const batch = destinations.slice(i, i + MAX_CONCURRENT);
+      console.log(`\nProcessing batch ${Math.floor(i / MAX_CONCURRENT) + 1}/${Math.ceil(destinations.length / MAX_CONCURRENT)} (${batch.join(', ')})`);
+
+      const batchResults = await processBatch(batch);
+      results.push(...batchResults);
+
+      console.log(`Progress: ${completed}/${destinations.length} routes (${cached} cached, ${scraped} scraped, ${errors} errors)`);
+    }
+
+    // Calculate total flights found
+    const totalFlights = results.reduce((sum, r) => sum + r.flights.length, 0);
+
+    console.log(`\n✓ Bulk search complete!`);
+    console.log(`  Total routes checked: ${destinations.length}`);
+    console.log(`  Total flights found: ${totalFlights}`);
+    console.log(`  From cache: ${cached}`);
+    console.log(`  Freshly scraped: ${scraped}`);
+    console.log(`  Errors: ${errors}\n`);
+
+    res.json({
+      origin,
+      date,
+      totalRoutes: destinations.length,
+      totalFlights,
+      cached,
+      scraped,
+      errors,
+      results
+    });
+
+  } catch (error) {
+    console.error('Bulk search error:', error);
+    res.status(500).json({
+      error: error.message,
+      results: []
+    });
+  }
+});
+
 // Get all cached routes
 app.get('/api/routes', (req, res) => {
   try {
