@@ -74,6 +74,11 @@
             border-color: #667eea;
         }
 
+        .form-group select:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -365,7 +370,7 @@
     <div class="container">
         <div class="header">
             <h1>✈️ Frontier GoWild Flight Scraper</h1>
-            <p>Search for GoWild flight availability across 140+ airports</p>
+            <p>Search for GoWild flight availability on valid Frontier routes</p>
         </div>
 
         <div class="search-card">
@@ -373,15 +378,15 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="origin">Origin Airport</label>
-                        <select id="origin" required>
-                            <option value="">Select origin...</option>
+                        <select id="origin" required disabled>
+                            <option value="">Loading airports...</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="destination">Destination Airport</label>
-                        <select id="destination" required>
-                            <option value="">Select destination...</option>
+                        <select id="destination" required disabled>
+                            <option value="">First select origin...</option>
                         </select>
                     </div>
                 </div>
@@ -436,126 +441,109 @@
     </div>
 
     <script>
-        // Global state
-        let airports = {};
-        let routes = {};
+        // Global data
+        let airportsData = {};
+        let routesData = {};
 
-        // Load airports and routes on page load
-        async function loadAirports() {
+        // Initialize on page load
+        (async function init() {
+            console.log('🚀 Initializing Frontier GoWild Scraper...');
+
             try {
-                const response = await fetch('/api/airports');
-                airports = await response.json();
+                // Load both airports and routes in parallel
+                const [airportsResponse, routesResponse] = await Promise.all([
+                    fetch('/api/airports'),
+                    fetch('/api/routes')
+                ]);
 
-                const originSelect = document.getElementById('origin');
-                const destSelect = document.getElementById('destination');
+                airportsData = await airportsResponse.json();
+                routesData = await routesResponse.json();
 
-                // Sort airports by city name
-                const sortedAirports = Object.entries(airports).sort((a, b) =>
-                    a[1].localeCompare(b[1])
-                );
+                console.log(`✓ Loaded ${Object.keys(airportsData).length} airports`);
+                console.log(`✓ Loaded routes for ${Object.keys(routesData).length} origins`);
 
-                // Populate ONLY origin dropdown initially
-                sortedAirports.forEach(([code, city]) => {
-                    originSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
-                });
+                // Populate origin dropdown
+                populateOriginDropdown();
 
-                // Keep destination empty with placeholder until origin is selected
-                destSelect.innerHTML = '<option value="">First select an origin...</option>';
-                destSelect.disabled = true;
+                console.log('✓ App ready!');
             } catch (error) {
-                console.error('Failed to load airports:', error);
+                console.error('Failed to initialize:', error);
+                alert('Failed to load airport data. Please refresh the page.');
             }
-        }
+        })();
 
-        // Load known routes
-        async function loadRoutes() {
-            try {
-                const response = await fetch('/api/routes');
-                routes = await response.json();
-                console.log(`Loaded ${Object.keys(routes).length} origins with known routes`);
-            } catch (error) {
-                console.error('Failed to load routes:', error);
-                routes = {};
-            }
-        }
-
-        // Initialize everything - wait for both airports and routes to load
-        async function initialize() {
-            await Promise.all([loadAirports(), loadRoutes()]);
-
-            // Only add event listener after both are loaded
+        // Populate origin dropdown with all airports sorted by city
+        function populateOriginDropdown() {
             const originSelect = document.getElementById('origin');
-            originSelect.addEventListener('change', filterDestinations);
 
-            console.log('✓ App initialized - ready to use');
+            // Sort airports by city name
+            const sortedAirports = Object.entries(airportsData).sort((a, b) => {
+                return a[1].localeCompare(b[1]);
+            });
+
+            // Clear loading message
+            originSelect.innerHTML = '<option value="">Select origin airport...</option>';
+
+            // Add all airports
+            sortedAirports.forEach(([code, city]) => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `${city} (${code})`;
+                originSelect.appendChild(option);
+            });
+
+            // Enable dropdown
+            originSelect.disabled = false;
+
+            // Add change listener
+            originSelect.addEventListener('change', onOriginChange);
         }
 
-        // Filter destinations based on selected origin
-        function filterDestinations() {
-            const originSelect = document.getElementById('origin');
+        // Handle origin selection change
+        function onOriginChange(event) {
             const destSelect = document.getElementById('destination');
-            const selectedOrigin = originSelect.value;
+            const selectedOrigin = event.target.value;
 
-            // If no origin selected, disable destination dropdown
             if (!selectedOrigin) {
-                destSelect.innerHTML = '<option value="">First select an origin...</option>';
+                // No origin selected
+                destSelect.innerHTML = '<option value="">First select origin...</option>';
                 destSelect.disabled = true;
                 return;
             }
 
+            // Get valid destinations for this origin
+            const validDestinations = routesData[selectedOrigin] || [];
+
+            if (validDestinations.length === 0) {
+                // No routes for this origin
+                destSelect.innerHTML = `<option value="">No known routes from ${selectedOrigin}</option>`;
+                destSelect.disabled = true;
+                console.warn(`No routes found for origin: ${selectedOrigin}`);
+                return;
+            }
+
+            // Populate destinations
+            destSelect.innerHTML = '<option value="">Select destination...</option>';
+
+            // Sort destinations by city name
+            const sortedDests = validDestinations
+                .map(code => ({
+                    code: code,
+                    city: airportsData[code] || code
+                }))
+                .sort((a, b) => a.city.localeCompare(b.city));
+
+            sortedDests.forEach(dest => {
+                const option = document.createElement('option');
+                option.value = dest.code;
+                option.textContent = `${dest.city} (${dest.code})`;
+                destSelect.appendChild(option);
+            });
+
             // Enable destination dropdown
             destSelect.disabled = false;
 
-            // Get valid destinations for this origin
-            const validDestinations = routes[selectedOrigin] || [];
-
-            // Clear and repopulate destination dropdown
-            const currentValue = destSelect.value;
-            destSelect.innerHTML = '<option value="">Select destination...</option>';
-
-            if (validDestinations.length > 0) {
-                // Show only valid destinations for this origin, sorted by city name
-                const sortedDests = validDestinations
-                    .map(code => ({
-                        code,
-                        city: airports[code] || code
-                    }))
-                    .sort((a, b) => a.city.localeCompare(b.city));
-
-                sortedDests.forEach(({ code, city }) => {
-                    destSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
-                });
-
-                // Restore selection if still valid
-                if (validDestinations.includes(currentValue)) {
-                    destSelect.value = currentValue;
-                }
-            } else {
-                // No known routes for this origin - show warning
-                destSelect.innerHTML = '<option value="">No known routes from ' + selectedOrigin + '</option>';
-                destSelect.disabled = true;
-            }
-        }
-
-        // Populate all destinations
-        function populateAllDestinations() {
-            const destSelect = document.getElementById('destination');
-            const currentValue = destSelect.value;
-
-            destSelect.innerHTML = '<option value="">Select destination...</option>';
-
-            const sortedAirports = Object.entries(airports).sort((a, b) =>
-                a[1].localeCompare(b[1])
-            );
-
-            sortedAirports.forEach(([code, city]) => {
-                destSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
-            });
-
-            // Restore previous selection
-            if (currentValue) {
-                destSelect.value = currentValue;
-            }
+            console.log(`✓ Loaded ${validDestinations.length} destinations for ${selectedOrigin}`);
         }
 
         // Set minimum date to today
@@ -605,7 +593,7 @@
             resultsContent.innerHTML = `
                 <div class="loading">
                     <div class="spinner"></div>
-                    <p>Searching for flights...</p>
+                    <p>Searching for flights from ${origin} to ${destination}...</p>
                 </div>
             `;
             searchButton.disabled = true;
@@ -650,10 +638,13 @@
             const resultsContent = document.getElementById('resultsContent');
             const { flights, cached, cachedAt, error } = data;
 
+            const originCity = airportsData[origin] || origin;
+            const destCity = airportsData[destination] || destination;
+
             let html = `
                 <div class="results-header">
                     <h2>
-                        ${origin} → ${destination} on ${date}
+                        ${originCity} (${origin}) → ${destCity} (${destination}) on ${date}
                         ${cached ? '<span class="cache-badge">CACHED</span>' : ''}
                     </h2>
                     <div class="results-meta">
@@ -717,9 +708,6 @@
 
             resultsContent.innerHTML = html;
         }
-
-        // Initialize
-        initialize();
     </script>
 </body>
 </html>
