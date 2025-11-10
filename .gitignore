@@ -20,3 +20,6 @@ flightdata_*.json
 test-*.js
 available_routes.json
 routes-scraper.js
+
+# Backup files
+*.backup-*
