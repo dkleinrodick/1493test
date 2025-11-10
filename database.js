@@ -14,6 +14,7 @@ db.exec(`
     departure_time TEXT,
     arrival_time TEXT,
     stops TEXT,
+    duration TEXT,
     price REAL,
     available INTEGER DEFAULT 1,
     scrape_method TEXT,
@@ -36,6 +37,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_scraped_at ON flights(scraped_at);
 `);
 
+// Add duration column if it doesn't exist (migration)
+try {
+  db.exec(`ALTER TABLE flights ADD COLUMN duration TEXT`);
+  console.log('Added duration column to flights table');
+} catch (error) {
+  // Column already exists, ignore error
+}
+
 // Database functions
 const db_functions = {
   // Get cached flights (within last 6 hours)
@@ -52,12 +61,13 @@ const db_functions = {
   // Insert or update flight
   upsertFlight: (flight) => {
     const stmt = db.prepare(`
-      INSERT INTO flights (origin, destination, date, departure_time, arrival_time, stops, price, available, scrape_method)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO flights (origin, destination, date, departure_time, arrival_time, stops, duration, price, available, scrape_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(origin, destination, date, departure_time)
       DO UPDATE SET
         arrival_time = excluded.arrival_time,
         stops = excluded.stops,
+        duration = excluded.duration,
         price = excluded.price,
         available = excluded.available,
         scrape_method = excluded.scrape_method,
@@ -70,6 +80,7 @@ const db_functions = {
       flight.departure_time,
       flight.arrival_time,
       flight.stops,
+      flight.duration || null,
       flight.price,
       flight.available ? 1 : 0,
       flight.scrape_method

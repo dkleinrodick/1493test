@@ -561,16 +561,12 @@
                                 <span class="detail-value">${flight.arrival_time}</span>
                             </div>
                             <div class="flight-detail-item">
-                                <span class="detail-label">Stops</span>
-                                <span class="detail-value">${flight.stops || 'Unknown'}</span>
+                                <span class="detail-label">Duration</span>
+                                <span class="detail-value">${flight.duration || 'Unknown'}</span>
                             </div>
                             <div class="flight-detail-item">
-                                <span class="detail-label">Method</span>
-                                <span class="detail-value">
-                                    <span class="badge ${flight.scrape_method === 'scrapfly' ? 'badge-api' : 'badge-fresh'}">
-                                        ${flight.scrape_method}
-                                    </span>
-                                </span>
+                                <span class="detail-label">Stops</span>
+                                <span class="detail-value">${flight.stops || 'Unknown'}</span>
                             </div>
                         </div>
                     </div>

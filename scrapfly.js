@@ -100,126 +100,102 @@ function parseFlightsFromHTML(html, origin, destination, date) {
   fs.writeFileSync('scrapfly_output.html', html);
   console.log('HTML saved to scrapfly_output.html for inspection');
 
-  // Check for error messages or no results
-  if (html.toLowerCase().includes('no flights available') ||
-      html.toLowerCase().includes('no results') ||
-      html.toLowerCase().includes('sold out')) {
-    console.log('✓ Page indicates no flights available');
-    return [];
-  }
+  try {
+    // Find the FlightData variable in the script tags
+    let flightDataJSON = null;
 
-  // Look for GoWild fare elements
-  // Note: These selectors may need to be adjusted based on actual HTML structure
+    $('script').each((i, elem) => {
+      const scriptContent = $(elem).html();
 
-  // Try finding flight cards/containers
-  const flightSelectors = [
-    '.flight-result',
-    '.flight-card',
-    '[class*="flight"]',
-    '[data-testid*="flight"]',
-    '.fare-option',
-    '[class*="fare"]'
-  ];
+      // Look for FlightData = '{...}' pattern
+      if (scriptContent && scriptContent.includes('FlightData')) {
+        const match = scriptContent.match(/FlightData\s*=\s*['"]({[^'"]+})['"]/);
 
-  for (const selector of flightSelectors) {
-    $(selector).each((i, elem) => {
-      try {
-        const flightElem = $(elem);
+        if (match && match[1]) {
+          // Found the FlightData JSON string
+          let jsonString = match[1];
 
-        // Look for price
-        const priceText = flightElem.text();
-        const priceMatch = priceText.match(/\$(\d+)/);
+          // Replace HTML-escaped quotes with actual quotes
+          jsonString = jsonString.replace(/&quot;/g, '"');
 
-        if (!priceMatch) return;
+          console.log('Found FlightData! Parsing...');
+          console.log('JSON string preview:', jsonString.substring(0, 200));
 
-        const price = parseFloat(priceMatch[1]);
-
-        // Only consider GoWild prices (typically under $200)
-        if (price > 200) return;
-
-        // Look for times
-        const timeElements = flightElem.find('[class*="time"], [data-testid*="time"]');
-        let departureTime = '';
-        let arrivalTime = '';
-
-        if (timeElements.length >= 2) {
-          departureTime = $(timeElements[0]).text().trim();
-          arrivalTime = $(timeElements[1]).text().trim();
-        }
-
-        // Look for stops info
-        let stops = 'Unknown';
-        const stopsText = flightElem.find('[class*="stop"], [class*="connection"]').text();
-        if (stopsText.toLowerCase().includes('nonstop') || stopsText.toLowerCase().includes('direct')) {
-          stops = 'Nonstop';
-        } else if (stopsText.match(/(\d+)\s*stop/i)) {
-          const numStops = stopsText.match(/(\d+)\s*stop/i)[1];
-          stops = `${numStops} Stop${numStops > 1 ? 's' : ''}`;
-        }
-
-        // Check if available
-        const isUnavailable = flightElem.text().toLowerCase().includes('sold out') ||
-                             flightElem.text().toLowerCase().includes('unavailable');
-
-        if (departureTime && arrivalTime && !isUnavailable) {
-          flights.push({
-            origin,
-            destination,
-            date,
-            departure_time: departureTime,
-            arrival_time: arrivalTime,
-            stops,
-            price,
-            available: true,
-            scrape_method: 'scrapfly'
-          });
-        }
-      } catch (err) {
-        console.error('Error parsing flight element:', err.message);
-      }
-    });
-
-    if (flights.length > 0) break; // Found flights with this selector
-  }
-
-  // Alternative: Search for all prices and try to extract flight info
-  if (flights.length === 0) {
-    console.log('Trying alternative parsing method...');
-
-    $('*').each((i, elem) => {
-      const text = $(elem).text();
-      const priceMatch = text.match(/\$(\d+)/);
-
-      if (priceMatch) {
-        const price = parseFloat(priceMatch[1]);
-
-        // GoWild fares are typically under $200
-        if (price < 200) {
-          console.log(`Found potential GoWild price: $${price}`);
-
-          // Try to find parent container with time info
-          const parent = $(elem).closest('div, article, section');
-          const timeText = parent.text();
-
-          // Look for time patterns (e.g., "10:30 AM", "14:45")
-          const timeMatches = timeText.match(/\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2}/gi);
-
-          if (timeMatches && timeMatches.length >= 2) {
-            flights.push({
-              origin,
-              destination,
-              date,
-              departure_time: timeMatches[0],
-              arrival_time: timeMatches[1],
-              stops: 'Unknown',
-              price,
-              available: true,
-              scrape_method: 'scrapfly'
-            });
+          try {
+            flightDataJSON = JSON.parse(jsonString);
+            console.log('✓ Successfully parsed FlightData JSON');
+          } catch (parseError) {
+            console.error('✗ Error parsing FlightData JSON:', parseError.message);
+            console.error('JSON string preview:', jsonString.substring(0, 500));
           }
         }
       }
     });
+
+    if (!flightDataJSON) {
+      console.log('⚠️ FlightData variable not found in HTML');
+      console.log('Checking for alternate data sources...');
+      return [];
+    }
+
+    // Navigate through the JSON structure: journeys -> flights
+    if (!flightDataJSON.journeys || !Array.isArray(flightDataJSON.journeys)) {
+      console.log('⚠️ No journeys array found in FlightData');
+      console.log('FlightData structure:', JSON.stringify(flightDataJSON, null, 2).substring(0, 500));
+      return [];
+    }
+
+    console.log(`Found ${flightDataJSON.journeys.length} journey(s)`);
+
+    // Iterate through journeys
+    for (const journey of flightDataJSON.journeys) {
+      if (!journey.flights || !Array.isArray(journey.flights)) {
+        continue;
+      }
+
+      console.log(`  Processing ${journey.flights.length} flight(s) in this journey`);
+
+      // Iterate through flights
+      for (const flight of journey.flights) {
+        // Extract GoWild fare
+        const goWildFare = flight.goWildFare;
+
+        if (!goWildFare || goWildFare <= 0) {
+          console.log('  ⊗ Skipping flight - no GoWild fare available');
+          continue;
+        }
+
+        // Extract other details
+        const duration = flight.duration || 'Unknown';
+        const stopsText = flight.stopsText || 'Unknown';
+
+        // Try to extract departure and arrival times
+        // These might be in different fields depending on the structure
+        const departureTime = flight.departureTime || flight.depTime || flight.departure || 'N/A';
+        const arrivalTime = flight.arrivalTime || flight.arrTime || flight.arrival || 'N/A';
+
+        console.log(`  ✓ Found GoWild fare: $${goWildFare} (${duration}, ${stopsText})`);
+
+        flights.push({
+          origin,
+          destination,
+          date,
+          departure_time: departureTime,
+          arrival_time: arrivalTime,
+          stops: stopsText,
+          price: goWildFare,
+          duration: duration,
+          available: true,
+          scrape_method: 'scrapfly'
+        });
+      }
+    }
+
+    console.log(`\n✓ Total GoWild flights found: ${flights.length}`);
+
+  } catch (error) {
+    console.error('Error parsing FlightData:', error.message);
+    console.error('Stack:', error.stack);
   }
 
   return flights;
