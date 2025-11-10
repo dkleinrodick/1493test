@@ -175,6 +175,8 @@ function parseFlightsFromHTML(html, origin, destination, date) {
 
     console.log(`Found ${flightDataJSON.journeys.length} journey(s)`);
 
+    let flightIndex = 0; // Track flight index for uniqueness
+
     // Iterate through journeys
     for (const journey of flightDataJSON.journeys) {
       if (!journey.flights || !Array.isArray(journey.flights)) {
@@ -185,8 +187,16 @@ function parseFlightsFromHTML(html, origin, destination, date) {
 
       // Iterate through flights
       for (const flight of journey.flights) {
+        flightIndex++;
+        // Check if this is a GoWild flight
+        if (!flight.isGoWildFareEnabled || flight.isGoWildFareEnabled !== true) {
+          console.log('  ⊗ Skipping flight - GoWild fare not enabled');
+          continue;
+        }
+
         // Extract GoWild fare
         const goWildFare = flight.goWildFare;
+        const goWildFareKey = flight.goWildFareKey || '';
 
         if (!goWildFare || goWildFare <= 0) {
           console.log('  ⊗ Skipping flight - no GoWild fare available');
@@ -194,25 +204,53 @@ function parseFlightsFromHTML(html, origin, destination, date) {
         }
 
         // Extract other details
-        const duration = flight.duration || 'Unknown';
+        const duration = flight.durationFormatted || flight.duration || 'Unknown';
         const stopsText = flight.stopsText || 'Unknown';
 
-        // Try to extract departure and arrival times
-        // These might be in different fields depending on the structure
-        const departureTime = flight.departureTime || flight.depTime || flight.departure || 'N/A';
-        const arrivalTime = flight.arrivalTime || flight.arrTime || flight.arrival || 'N/A';
+        // Extract departure and arrival times from legs (same as direct scraper)
+        let departureTime = 'N/A';
+        let arrivalTime = 'N/A';
+        const segments = [];
+
+        if (flight.legs && Array.isArray(flight.legs) && flight.legs.length > 0) {
+          // First leg departure
+          const firstLeg = flight.legs[0];
+          departureTime = firstLeg.departureDateFormatted || firstLeg.departureTime || 'N/A';
+
+          // Last leg arrival
+          const lastLeg = flight.legs[flight.legs.length - 1];
+          arrivalTime = lastLeg.arrivalDateFormatted || lastLeg.arrivalTime || 'N/A';
+
+          // Extract all segments
+          for (const leg of flight.legs) {
+            segments.push({
+              from: leg.departureStation || 'N/A',
+              to: leg.arrivalStation || 'N/A',
+              departure_time: leg.departureDateFormatted || leg.departureTime || 'N/A',
+              arrival_time: leg.arrivalDateFormatted || leg.arrivalTime || 'N/A',
+              duration: leg.durationFormatted || leg.duration || 'N/A'
+            });
+          }
+        }
 
         console.log(`  ✓ Found GoWild fare: $${goWildFare} (${duration}, ${stopsText})`);
+        console.log(`    Departure: ${departureTime}, Arrival: ${arrivalTime}`);
+
+        // Ensure uniqueness: if departure_time is 'N/A', append flight index
+        // This prevents the database UNIQUE constraint from treating all 'N/A' flights as duplicates
+        const uniqueDepartureTime = departureTime === 'N/A' ? `N/A-${flightIndex}` : departureTime;
 
         flights.push({
           origin,
           destination,
           date,
-          departure_time: departureTime,
+          departure_time: uniqueDepartureTime,
           arrival_time: arrivalTime,
           stops: stopsText,
           price: goWildFare,
           duration: duration,
+          selection_key: goWildFareKey,
+          segments: segments,
           available: true,
           scrape_method: 'scrapfly'
         });

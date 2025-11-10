@@ -562,6 +562,8 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
 
     console.log(`Found ${flightDataJSON.journeys.length} journey(s)`);
 
+    let flightIndex = 0; // Track flight index for uniqueness
+
     // Iterate through journeys
     for (const journey of flightDataJSON.journeys) {
       if (!journey.flights || !Array.isArray(journey.flights)) {
@@ -572,6 +574,7 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
 
       // Iterate through flights
       for (const flight of journey.flights) {
+        flightIndex++;
         // Check if this is a GoWild flight by checking isGoWildFareEnabled
         if (!flight.isGoWildFareEnabled || flight.isGoWildFareEnabled !== true) {
           console.log('  ⊗ Skipping flight - GoWild fare not enabled');
@@ -621,11 +624,15 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
         console.log(`    Departure: ${departureTime}, Arrival: ${arrivalTime}`);
         console.log(`    Segments: ${segments.length}, Key: ${goWildFareKey.substring(0, 30)}...`);
 
+        // Ensure uniqueness: if departure_time is 'N/A', append flight index
+        // This prevents the database UNIQUE constraint from treating all 'N/A' flights as duplicates
+        const uniqueDepartureTime = departureTime === 'N/A' ? `N/A-${flightIndex}` : departureTime;
+
         flights.push({
           origin,
           destination,
           date,
-          departure_time: departureTime,
+          departure_time: uniqueDepartureTime,
           arrival_time: arrivalTime,
           stops: stopsText,
           price: goWildFare,
