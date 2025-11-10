@@ -2,6 +2,7 @@ const { chromium } = require('playwright-extra');
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const fs = require('fs');
 const https = require('https');
+const he = require('he');
 const config = require('./config');
 
 // Add stealth plugin
@@ -291,14 +292,9 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
           console.log(`FlightData length: ${flightDataString.length} characters`);
           console.log('FlightData preview:', flightDataString.substring(0, 300) + '...');
 
-          // FlightData is HTML-encoded JSON string, decode it first
-          // Replace all HTML entities to make it valid JSON
-          const cleanedString = flightDataString
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, '&')
-            .replace(/&#39;/g, "'")
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>');
+          // FlightData is HTML-encoded JSON string, decode ALL HTML entities
+          // Using 'he' library for comprehensive entity decoding (handles named and numeric entities)
+          const cleanedString = he.decode(flightDataString);
 
           // Save cleaned version
           fs.writeFileSync('flightdata_cleaned.txt', cleanedString);
@@ -502,12 +498,7 @@ function extractFlightDataFromHTML(html) {
       const altMatch = html.match(/var\s+FlightData\s*=\s*'([^']*)';/);
       if (altMatch) {
         console.log('Found FlightData with single quotes');
-        const cleanedString = altMatch[1]
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&#39;/g, "'")
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>');
+        const cleanedString = he.decode(altMatch[1]);
         const parsed = JSON.parse(cleanedString);
         console.log('✓ Successfully extracted and parsed FlightData from HTML');
         return parsed;
@@ -526,13 +517,8 @@ function extractFlightDataFromHTML(html) {
     console.log('✓ Found FlightData in HTML');
     const encodedString = flightDataMatch[1];
 
-    // Decode HTML entities
-    const cleanedString = encodedString
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&#39;/g, "'")
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
+    // Decode ALL HTML entities using 'he' library
+    const cleanedString = he.decode(encodedString);
 
     // Parse JSON
     const parsed = JSON.parse(cleanedString);

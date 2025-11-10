@@ -1,4 +1,5 @@
 const axios = require('axios');
+const he = require('he');
 
 // Scrapfly API credentials
 const SCRAPFLY_API_KEY = 'scp-live-c07f17fbff654e8188cd5308fa92018d';
@@ -118,8 +119,8 @@ function parseFlightsFromHTML(html, origin, destination, date) {
     if (extractedData) {
       console.log('✓ Found injected FlightData!');
       try {
-        // The data is already a JSON string, just need to unescape and parse
-        let jsonString = extractedData.replace(/&quot;/g, '"');
+        // Decode ALL HTML entities using 'he' library
+        let jsonString = he.decode(extractedData);
         flightDataJSON = JSON.parse(jsonString);
         console.log('✓ Successfully parsed injected FlightData JSON');
       } catch (parseError) {
@@ -142,8 +143,8 @@ function parseFlightsFromHTML(html, origin, destination, date) {
             // Found the FlightData JSON string
             let jsonString = match[1];
 
-            // Replace HTML-escaped quotes with actual quotes
-            jsonString = jsonString.replace(/&quot;/g, '"');
+            // Decode ALL HTML entities using 'he' library
+            jsonString = he.decode(jsonString);
 
             console.log('Found FlightData in script tag! Parsing...');
             console.log('JSON string preview:', jsonString.substring(0, 200));
