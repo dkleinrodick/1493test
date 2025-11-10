@@ -355,6 +355,16 @@
                     </div>
                 </div>
 
+                <div class="options-group" id="proxyOptions" style="display: none; padding: 15px; background: #f9f9f9; border-radius: 8px; margin-top: 10px;">
+                    <div class="option-item">
+                        <input type="checkbox" id="useProxies">
+                        <label for="useProxies">🌐 Use Proxy Rotation (bypasses bot detection)</label>
+                    </div>
+                    <small style="color: #666; margin-left: 28px; display: block; margin-top: 5px;">
+                        Automatically tries different proxies if bot detection is triggered
+                    </small>
+                </div>
+
                 <div class="button-group">
                     <button type="submit" class="btn-primary">🔍 Search Flights</button>
                 </div>
@@ -421,6 +431,23 @@
             }
         }
 
+        // Toggle proxy options visibility based on method selection
+        function toggleProxyOptions() {
+            const method = document.querySelector('input[name="method"]:checked').value;
+            const proxyOptions = document.getElementById('proxyOptions');
+
+            if (method === 'direct') {
+                proxyOptions.style.display = 'block';
+            } else {
+                proxyOptions.style.display = 'none';
+            }
+        }
+
+        // Add event listeners to method radio buttons
+        document.querySelectorAll('input[name="method"]').forEach(radio => {
+            radio.addEventListener('change', toggleProxyOptions);
+        });
+
         // Search flights
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -430,6 +457,7 @@
             const date = document.getElementById('date').value;
             const method = document.querySelector('input[name="method"]:checked').value;
             const useCache = document.getElementById('useCache').checked;
+            const useProxies = document.getElementById('useProxies').checked;
 
             // Show loading
             document.getElementById('loading').classList.add('active');
@@ -447,7 +475,8 @@
                         destination,
                         date,
                         method,
-                        useCache
+                        useCache,
+                        useProxies
                     })
                 });
 

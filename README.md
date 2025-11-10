@@ -5,6 +5,7 @@ A web application that scrapes Frontier Airlines for GoWild flight availability 
 ## 🎯 Features
 
 - ✅ **Scrapfly API Integration** - Bypasses bot protection and extracts flight data
+- ✅ **Proxy Rotation** - Automatically tries different proxies when bot detection occurs
 - ✅ **Smart Parsing** - Extracts FlightData JSON directly from rendered pages
 - ✅ **SQLite Caching** - 6-hour cache reduces API calls
 - ✅ **140+ Airports** - Complete Frontier network coverage (882 routes)
@@ -33,21 +34,29 @@ Open `http://localhost:3000` in your browser.
 - ✅ **Error Handling** - Detailed error messages and suggestions
 
 ### Direct Scraping Status
-Direct scraping now uses **Playwright** with stealth plugins:
+Direct scraping now uses **Playwright** with stealth plugins and **proxy rotation**:
 - ✅ **Playwright Installed** - Headless Chromium with anti-detection
 - ✅ **JavaScript Rendering** - Extracts FlightData from rendered pages
 - ✅ **Stealth Mode** - Uses playwright-extra with stealth plugins
-- ⚠️ **Still Blocked** - Frontier's bot protection detects automation
+- ✅ **Proxy Rotation** - Automatically tries up to 10 proxies when bot detection occurs
+- ✅ **State Persistence** - Remembers which proxies work between runs
+- ⚠️ **Sometimes Blocked** - Frontier's bot protection may still detect automation
 
-**Why Frontier Still Blocks It:**
-Frontier uses sophisticated bot detection that identifies automation even with stealth plugins. The containerized environment may make detection easier.
+**Proxy Rotation:**
+When bot detection is triggered, the scraper automatically:
+1. Fetches 500 free proxies from Geonode API
+2. Tries proxies one by one until it finds one that works
+3. Saves progress between runs
+4. Caches proxy list for 24 hours
+
+See `PROXY_SETUP.md` for complete documentation.
 
 **Options:**
 1. **Scrapfly API (Recommended)** - Advanced anti-scraping protection (ASP) with residential proxies
-2. **Local Machine** - Direct scraping might work better on your local machine
-3. **Residential Proxies** - Could be added to Playwright for better success rate
+2. **Direct Scraping with Proxies** - Enable in the UI when using direct scraping mode
+3. **Direct Scraping without Proxies** - Works occasionally on local machines
 
-**Recommendation:** Use Scrapfly API mode (default) for reliable results.
+**Recommendation:** Use Scrapfly API mode (default) for most reliable results, or enable proxy rotation for direct scraping.
 
 ## 🔧 How It Works
 
@@ -96,9 +105,17 @@ Content-Type: application/json
   "destination": "CUN",
   "date": "2025-11-15",
   "method": "api",          # "direct" (Playwright) or "api" (Scrapfly)
-  "useCache": true          # Use cached data if available (6-hour cache)
+  "useCache": true,         # Use cached data if available (6-hour cache)
+  "useProxies": false       # Enable proxy rotation (only for "direct" method)
 }
 ```
+
+**Proxy Rotation (Direct Scraping Only):**
+When `method: "direct"` and `useProxies: true`:
+- Automatically fetches and tries proxies from Geonode API
+- Retries up to 10 proxies when bot detection occurs
+- Saves state between runs
+- See `PROXY_SETUP.md` for configuration options
 
 ### Get Available Airports
 ```bash
@@ -133,15 +150,19 @@ Tracks all scraping attempts for debugging and analytics.
 ```
 ├── server.js                    # Express server and API routes
 ├── database.js                  # SQLite database functions
-├── scraper.js                   # Direct scraping with Playwright (blocked by Frontier)
+├── scraper.js                   # Direct scraping with Playwright + proxy rotation
 ├── scrapfly.js                  # Scrapfly API integration (recommended)
 ├── browseai.js                  # Browse.ai API integration (deprecated)
+├── config.js                    # Configuration (proxy settings, etc.)
 ├── package.json                 # Dependencies (includes playwright, playwright-extra)
 ├── flights.db                   # SQLite database (created on first run)
+├── proxy_list.json              # Cached proxy list (auto-generated)
+├── proxy_state.json             # Proxy state persistence (auto-generated)
 ├── test-direct-scraper.js       # Test script for direct scraping
 ├── test-playwright-basic.js     # Test script for Playwright functionality
+├── PROXY_SETUP.md               # Proxy setup and configuration guide
 └── public/
-    └── index.html               # Frontend interface
+    └── index.html               # Frontend interface with proxy toggle
 ```
 
 ## Next Steps
@@ -171,13 +192,21 @@ The application supports all 882 Frontier routes. See the full list in `server.j
 
 ## Troubleshooting
 
-### Direct Scraping Shows "Access Denied"
-**Expected behavior** - Frontier's bot protection blocks automated requests even with Playwright stealth mode.
+### Direct Scraping Shows "Access Denied" or Bot Detection
+**Common issue** - Frontier's bot protection blocks automated requests.
 
 **Solutions:**
-1. Use **Scrapfly API mode** (recommended - works reliably)
-2. Try running on your **local machine** instead of in a container
-3. Consider adding **residential proxies** to Playwright
+1. **Enable Proxy Rotation** - Check "Use Proxy Rotation" in the UI when using direct scraping
+2. Use **Scrapfly API mode** (recommended - works most reliably)
+3. Try running on your **local machine** instead of in a container
+4. See `PROXY_SETUP.md` for advanced proxy configuration
+
+### Proxy Rotation Not Working
+If all proxies fail:
+1. Delete `proxy_list.json` to fetch a fresh proxy list
+2. Increase `MAX_PROXY_RETRIES` in `config.js`
+3. Check your internet connection
+4. Try Scrapfly API instead (more reliable)
 
 ### Scrapfly API Fails
 1. Check your API key is correct in `scrapfly.js`

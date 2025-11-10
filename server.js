@@ -153,7 +153,7 @@ app.get('/api/airports', (req, res) => {
 
 // Search flights
 app.post('/api/search', async (req, res) => {
-  const { origin, destination, date, method, useCache, robotId } = req.body;
+  const { origin, destination, date, method, useCache, useProxies, robotId } = req.body;
 
   // Validate inputs
   if (!origin || !destination || !date) {
@@ -192,7 +192,8 @@ app.post('/api/search', async (req, res) => {
       if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
         flights = await scrapeFrontierWithScrapfly(origin, destination, date);
       } else {
-        flights = await scrapeFrontierDirect(origin, destination, date);
+        // Pass useProxies parameter to direct scraper
+        flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false);
       }
 
       // Clear old flights and insert new ones
