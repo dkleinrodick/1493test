@@ -16,8 +16,10 @@ const MIN_REQUEST_INTERVAL = config.MIN_REQUEST_INTERVAL || 10000;
 const PROXY_STATE_FILE = 'proxy_state.json';
 const PROXY_LIST_FILE = 'proxy_list.json';
 let proxyList = [];
-let currentProxyIndex = 0;
+let proxyPool = []; // Available proxies for parallel requests
+let proxyInUse = new Map(); // Track proxies currently in use
 let USE_PROXIES = config.USE_PROXIES || false; // Can be overridden by config.js
+const MAX_PARALLEL_PROXIES = 5; // Support up to 5 simultaneous requests
 
 async function waitForRateLimit() {
   const now = Date.now();
@@ -32,18 +34,13 @@ async function waitForRateLimit() {
   lastRequestTime = Date.now();
 }
 
-// Fetch proxy list from ProxyScrape API
+// Fetch proxy list from GitHub (TheSpeedX/PROXY-List)
 async function fetchProxyList() {
   return new Promise((resolve, reject) => {
-    console.log('Fetching proxy list from ProxyScrape API...');
-    const url = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&country=us&proxy_format=protocolipport&format=text&timeout=20000';
+    console.log('Fetching proxy list from GitHub (TheSpeedX/PROXY-List)...');
+    const url = 'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt';
 
-    // Configure HTTPS options to handle SSL certificate issues
-    const options = {
-      rejectUnauthorized: false // Disable SSL certificate verification
-    };
-
-    https.get(url, options, (res) => {
+    https.get(url, (res) => {
       let data = '';
 
       res.on('data', (chunk) => {
@@ -52,23 +49,22 @@ async function fetchProxyList() {
 
       res.on('end', () => {
         try {
-          // Parse text format: each line is "protocol://ip:port"
+          // Parse text format: each line is "IP:PORT"
           const lines = data.trim().split('\n').filter(line => line.trim());
           const proxies = [];
 
-          lines.forEach(line => {
+          lines.forEach((line, index) => {
             line = line.trim();
-            // Format: http://1.2.3.4:8080 or socks5://1.2.3.4:1080
-            const match = line.match(/^(https?|socks[45]):\/\/([^:]+):(\d+)$/);
+            // Format: 1.2.3.4:8080
+            const match = line.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+)$/);
             if (match) {
               proxies.push({
-                host: match[2],
-                port: parseInt(match[3]),
-                protocols: [match[1]],
-                country: 'US',
+                id: `proxy-${index}`,
+                host: match[1],
+                port: parseInt(match[2]),
+                protocol: 'http',
                 lastChecked: new Date().toISOString(),
-                upTime: 100,
-                responseTime: 0
+                inUse: false
               });
             }
           });
@@ -76,7 +72,7 @@ async function fetchProxyList() {
           if (proxies.length > 0) {
             // Save to file
             fs.writeFileSync(PROXY_LIST_FILE, JSON.stringify(proxies, null, 2));
-            console.log(`✓ Fetched ${proxies.length} proxies and saved to ${PROXY_LIST_FILE}`);
+            console.log(`✓ Fetched ${proxies.length} proxies from GitHub and saved to ${PROXY_LIST_FILE}`);
             resolve(proxies);
           } else {
             reject(new Error('No valid proxies found in response'));
@@ -116,15 +112,14 @@ function saveProxyState(index, lastWorkingProxy = null) {
   fs.writeFileSync(PROXY_STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-// Load or fetch proxy list
-// Fetches fresh proxies every time the program starts
+// Load or fetch proxy list and initialize proxy pool
 async function initializeProxyList() {
-  console.log('Initializing proxy list...');
+  console.log('Initializing proxy pool for parallel requests...');
 
   // Always fetch fresh proxies on startup
   try {
     proxyList = await fetchProxyList();
-    console.log(`✓ Initialized with ${proxyList.length} fresh proxies`);
+    console.log(`✓ Fetched ${proxyList.length} fresh proxies from GitHub`);
   } catch (error) {
     console.error('Failed to fetch fresh proxies:', error.message);
 
@@ -142,28 +137,51 @@ async function initializeProxyList() {
     }
   }
 
-  // Load state
-  loadProxyState();
+  // Initialize proxy pool with top proxies
+  proxyPool = proxyList.slice(0, Math.min(proxyList.length, 100)); // Use top 100 proxies
+  proxyInUse.clear();
+
+  console.log(`✓ Proxy pool initialized with ${proxyPool.length} proxies`);
+  console.log(`✓ Ready for ${MAX_PARALLEL_PROXIES} simultaneous requests`);
 
   return proxyList;
 }
 
-// Get next proxy to try
+// Acquire a proxy from the pool for parallel requests
+function acquireProxy() {
+  // Find first available proxy not currently in use
+  for (let i = 0; i < proxyPool.length; i++) {
+    const proxy = proxyPool[i];
+    if (!proxyInUse.has(proxy.id)) {
+      proxyInUse.set(proxy.id, {
+        proxy: proxy,
+        acquiredAt: Date.now()
+      });
+      console.log(`🔒 Acquired proxy ${proxy.id} (${proxy.host}:${proxy.port}) - ${proxyInUse.size}/${MAX_PARALLEL_PROXIES} in use`);
+      return proxy;
+    }
+  }
+
+  // If all proxies in use, return null (caller should retry or wait)
+  console.log(`⚠️ All proxies currently in use (${proxyInUse.size}/${MAX_PARALLEL_PROXIES})`);
+  return null;
+}
+
+// Release a proxy back to the pool after use
+function releaseProxy(proxyId) {
+  if (proxyInUse.has(proxyId)) {
+    const info = proxyInUse.get(proxyId);
+    const duration = Date.now() - info.acquiredAt;
+    proxyInUse.delete(proxyId);
+    console.log(`🔓 Released proxy ${proxyId} after ${(duration/1000).toFixed(1)}s - ${proxyInUse.size}/${MAX_PARALLEL_PROXIES} in use`);
+    return true;
+  }
+  return false;
+}
+
+// Get next proxy (for backward compatibility with sequential mode)
 function getNextProxy() {
-  if (!proxyList || proxyList.length === 0) {
-    return null;
-  }
-
-  if (currentProxyIndex >= proxyList.length) {
-    console.log('⚠️ Reached end of proxy list, restarting from beginning');
-    currentProxyIndex = 0;
-  }
-
-  const proxy = proxyList[currentProxyIndex];
-  currentProxyIndex++;
-  saveProxyState(currentProxyIndex);
-
-  return proxy;
+  return acquireProxy();
 }
 
 async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_PROXIES) {
@@ -176,11 +194,11 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
   console.log(`Proxy mode: ${useProxies ? 'ENABLED' : 'DISABLED'}`);
 
   // Initialize proxy list if needed
-  if (useProxies && proxyList.length === 0) {
+  if (useProxies && proxyPool.length === 0) {
     await initializeProxyList();
   }
 
-  const MAX_PROXY_RETRIES = useProxies ? (config.MAX_PROXY_RETRIES || 10) : 1;
+  const MAX_PROXY_RETRIES = useProxies ? (config.MAX_PROXY_RETRIES || 3) : 1;
   let attempt = 0;
   let lastError = null;
 
@@ -188,15 +206,20 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
     attempt++;
     let browser;
     let currentProxy = null;
+    let proxyId = null;
 
     try {
-      // Get proxy if enabled
+      // Acquire proxy if enabled
       if (useProxies) {
-        currentProxy = getNextProxy();
+        currentProxy = acquireProxy();
         if (!currentProxy) {
-          throw new Error('No proxies available');
+          // No proxies available, wait a bit and retry
+          console.log('⏳ Waiting for available proxy...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
         }
-        console.log(`\n[Attempt ${attempt}/${MAX_PROXY_RETRIES}] Trying proxy: ${currentProxy.host}:${currentProxy.port} (${currentProxy.country})`);
+        proxyId = currentProxy.id;
+        console.log(`\n[Attempt ${attempt}/${MAX_PROXY_RETRIES}] Using proxy: ${currentProxy.host}:${currentProxy.port}`);
       } else {
         console.log(`\n[Attempt ${attempt}/${MAX_PROXY_RETRIES}] Direct connection (no proxy)`);
       }
@@ -383,6 +406,9 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
     }
 
     if (!flightDataJSON) {
+      // Release proxy before continuing
+      if (proxyId) releaseProxy(proxyId);
+
       // If using proxies and haven't tried all of them, continue
       if (useProxies && attempt < MAX_PROXY_RETRIES) {
         console.log(`⚠️ FlightData not found, trying next proxy...`);
@@ -410,10 +436,12 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
 
     console.log(`✓ Total GoWild flights found: ${flights.length}`);
 
-    // If we got flights and used a proxy, save it as working
+    // Release proxy after successful scrape
+    if (proxyId) releaseProxy(proxyId);
+
+    // If we got flights and used a proxy, mark it as working
     if (useProxies && currentProxy && flights.length > 0) {
-      console.log(`✅ Success with proxy: ${currentProxy.host}:${currentProxy.port} (${currentProxy.country})`);
-      saveProxyState(currentProxyIndex, currentProxy);
+      console.log(`✅ Success with proxy: ${currentProxy.host}:${currentProxy.port}`);
     }
 
     return flights;
@@ -422,6 +450,9 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
       if (browser) {
         await browser.close();
       }
+
+      // Release proxy on error
+      if (proxyId) releaseProxy(proxyId);
 
       console.error('⚠️ Error scraping Frontier:', error.message);
       lastError = error;
@@ -653,7 +684,10 @@ function getProxyStatus() {
   return {
     enabled: USE_PROXIES,
     totalProxies: proxyList.length,
-    currentIndex: currentProxyIndex,
+    poolSize: proxyPool.length,
+    inUse: proxyInUse.size,
+    available: proxyPool.length - proxyInUse.size,
+    maxParallel: MAX_PARALLEL_PROXIES,
     hasProxyList: proxyList.length > 0
   };
 }
@@ -662,5 +696,7 @@ module.exports = {
   scrapeFrontierDirect,
   setProxyMode,
   getProxyStatus,
-  initializeProxyList
+  initializeProxyList,
+  acquireProxy,
+  releaseProxy
 };
