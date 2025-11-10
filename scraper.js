@@ -55,18 +55,39 @@ async function scrapeFrontierDirect(origin, destination, date) {
 
     console.log('Navigating to Frontier booking page...');
 
-    // Navigate to the page
-    await page.goto(url, {
-      waitUntil: 'networkidle',
-      timeout: 60000
-    });
+    // Navigate to the page with less strict wait condition
+    try {
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',  // Less strict than 'networkidle'
+        timeout: 60000
+      });
+      console.log('✓ Page navigation successful (DOM loaded)');
+    } catch (navError) {
+      console.error('⚠️ Navigation error:', navError.message);
 
-    console.log('Page loaded, waiting for FlightData...');
+      // Try to save whatever we got
+      try {
+        const html = await page.content();
+        fs.writeFileSync('direct_scraper_output.html', html);
+        await page.screenshot({ path: 'direct_scraper_screenshot.png' });
+        console.log('Saved HTML and screenshot for debugging');
+      } catch (e) {
+        console.error('Could not save debug files:', e.message);
+      }
 
-    // Save HTML for debugging first
+      throw navError;
+    }
+
+    // Wait a bit for JavaScript to execute
+    console.log('Waiting for page to stabilize...');
+    await page.waitForTimeout(5000);
+
+    // Save HTML for debugging
     let html = await page.content();
     fs.writeFileSync('direct_scraper_output.html', html);
-    console.log('HTML saved to direct_scraper_output.html for inspection');
+    await page.screenshot({ path: 'direct_scraper_screenshot.png' });
+    console.log('✓ HTML saved to direct_scraper_output.html');
+    console.log('✓ Screenshot saved to direct_scraper_screenshot.png');
 
     // Wait for FlightData to be defined on the page
     let flightDataJSON = null;
@@ -95,13 +116,32 @@ async function scrapeFrontierDirect(origin, destination, date) {
       console.log('Checking page content for errors...');
 
       // Check for common issues
-      const pageText = await page.evaluate(() => document.body.innerText);
-      if (pageText.toLowerCase().includes('access denied') ||
-          pageText.toLowerCase().includes('blocked')) {
-        console.log('⚠️ Page shows "access denied" or "blocked" message');
-      }
-      if (pageText.toLowerCase().includes('captcha')) {
-        console.log('⚠️ CAPTCHA detected on page');
+      try {
+        const pageText = await page.evaluate(() => document.body.innerText);
+        const pageTextPreview = pageText.substring(0, 500);
+
+        console.log('Page text preview:', pageTextPreview);
+
+        if (pageText.toLowerCase().includes('access denied') ||
+            pageText.toLowerCase().includes('blocked')) {
+          console.log('⚠️ Page shows "access denied" or "blocked" message');
+        }
+        if (pageText.toLowerCase().includes('captcha')) {
+          console.log('⚠️ CAPTCHA detected on page');
+        }
+        if (pageText.toLowerCase().includes('error')) {
+          console.log('⚠️ Page shows error message');
+        }
+
+        // Check if this looks like the actual booking page
+        if (pageText.toLowerCase().includes('frontier') &&
+            pageText.toLowerCase().includes('flight')) {
+          console.log('✓ Page appears to be a Frontier flight page');
+        } else {
+          console.log('⚠️ Page may not be the expected Frontier booking page');
+        }
+      } catch (e) {
+        console.error('Could not check page text:', e.message);
       }
     }
 
@@ -133,15 +173,25 @@ async function scrapeFrontierDirect(origin, destination, date) {
     };
 
     // Check for specific error types
-    if (error.message.includes('Timeout')) {
+    if (error.message.includes('Timeout') || error.message.includes('timeout')) {
       errorDetails.type = 'timeout';
-      errorDetails.message = 'Request timed out. FlightData did not load in time.';
+      errorDetails.message = 'Request timed out while loading page. This usually means:\n' +
+        '  1. Frontier is blocking automated access\n' +
+        '  2. The page structure has changed\n' +
+        '  3. Network connectivity issues\n' +
+        'Suggestion: Use Scrapfly API mode instead, or check direct_scraper_output.html and direct_scraper_screenshot.png for details.';
     } else if (error.message.includes('net::ERR_')) {
       errorDetails.type = 'network_error';
       errorDetails.message = 'Network error: ' + error.message;
+    } else if (error.message.includes('navigation')) {
+      errorDetails.type = 'navigation_error';
+      errorDetails.message = 'Failed to navigate to page: ' + error.message;
     }
 
     console.error('Detailed error:', JSON.stringify(errorDetails, null, 2));
+    console.error('\n💡 TIP: Check these debug files in your project folder:');
+    console.error('   - direct_scraper_output.html (page HTML)');
+    console.error('   - direct_scraper_screenshot.png (page screenshot)');
 
     const detailedError = new Error(errorDetails.message);
     detailedError.details = errorDetails;
