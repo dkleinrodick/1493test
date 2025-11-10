@@ -158,12 +158,28 @@ async function testBrowseAIConnection() {
     );
 
     console.log('Browse.ai API connection successful');
-    console.log('Available robots:', response.data.result.robots.length);
-    return response.data.result.robots;
+    console.log('Full API response structure:', JSON.stringify(response.data, null, 2));
+
+    // Handle different response structures
+    let robots = [];
+    if (response.data?.result?.robots) {
+      robots = response.data.result.robots;
+    } else if (response.data?.robots) {
+      robots = response.data.robots;
+    } else if (Array.isArray(response.data)) {
+      robots = response.data;
+    } else {
+      console.log('Unexpected response structure. Response data:', response.data);
+      return [];
+    }
+
+    console.log('Available robots:', robots.length);
+    return robots;
   } catch (error) {
     console.error('Browse.ai API connection failed:', error.message);
     if (error.response) {
-      console.error('API Response:', error.response.data);
+      console.error('API Response status:', error.response.status);
+      console.error('API Response data:', JSON.stringify(error.response.data, null, 2));
     }
     throw error;
   }

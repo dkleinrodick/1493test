@@ -140,13 +140,31 @@ async function scrapeFrontierDirect(origin, destination, date) {
       const fs = require('fs');
       fs.writeFileSync('debug_output.html', html);
       console.log('No flights found. HTML saved to debug_output.html for inspection');
+      console.log(`HTML length: ${html.length} characters`);
+
+      // Log snippets to help debug
+      if (html.includes('Access denied') || html.includes('access denied')) {
+        console.log('⚠️ Access denied detected in HTML - likely bot protection');
+      }
+      if (html.includes('captcha') || html.includes('CAPTCHA')) {
+        console.log('⚠️ CAPTCHA detected in HTML');
+      }
+      if (html.includes('CloudFlare') || html.includes('cloudflare')) {
+        console.log('⚠️ CloudFlare protection detected');
+      }
 
       // Check if page indicates no flights available
       if (html.toLowerCase().includes('no flights available') ||
           html.toLowerCase().includes('no results') ||
           html.toLowerCase().includes('sold out')) {
-        console.log('Page indicates no flights available');
+        console.log('✓ Page loaded successfully but indicates no flights available');
         return [];
+      }
+
+      // If HTML is very short, it's likely an error page
+      if (html.length < 1000) {
+        console.log('⚠️ HTML is suspiciously short - likely an error page');
+        console.log('HTML content preview:', html.substring(0, 500));
       }
     }
 
