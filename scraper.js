@@ -98,19 +98,28 @@ async function scrapeFrontierDirect(origin, destination, date) {
 
       console.log('✓ FlightData found!');
 
-      // Extract FlightData from the page
-      flightDataJSON = await page.evaluate(() => {
+      // Extract FlightData from the page as a string
+      const flightDataString = await page.evaluate(() => {
         if (typeof FlightData !== 'undefined') {
-          // FlightData is a JSON string, parse it
-          try {
-            return JSON.parse(FlightData);
-          } catch (e) {
-            console.error('Error parsing FlightData:', e);
-            return null;
-          }
+          return FlightData;
         }
         return null;
       });
+
+      if (flightDataString) {
+        try {
+          // FlightData is HTML-encoded JSON string, decode it first
+          // Replace &quot; with " to make it valid JSON
+          const cleanedString = flightDataString.replace(/&quot;/g, '"');
+
+          console.log('Parsing cleaned FlightData string...');
+          flightDataJSON = JSON.parse(cleanedString);
+          console.log('✓ Successfully parsed FlightData JSON');
+        } catch (parseError) {
+          console.error('⚠️ Error parsing FlightData:', parseError.message);
+          console.log('FlightData preview:', flightDataString.substring(0, 200));
+        }
+      }
     } catch (timeoutError) {
       console.log('⚠️ FlightData not found within timeout');
       console.log('Checking page content for errors...');
@@ -222,8 +231,15 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
 
       // Iterate through flights
       for (const flight of journey.flights) {
-        // Extract GoWild fare
+        // Check if this is a GoWild flight by checking isGoWildFareEnabled
+        if (!flight.isGoWildFareEnabled || flight.isGoWildFareEnabled !== true) {
+          console.log('  ⊗ Skipping flight - GoWild fare not enabled');
+          continue;
+        }
+
+        // Extract GoWild fare details
         const goWildFare = flight.goWildFare;
+        const goWildFareKey = flight.goWildFareKey || '';
 
         if (!goWildFare || goWildFare <= 0) {
           console.log('  ⊗ Skipping flight - no GoWild fare available');
@@ -231,14 +247,38 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
         }
 
         // Extract other details
-        const duration = flight.duration || 'Unknown';
+        const duration = flight.durationFormatted || flight.duration || 'Unknown';
         const stopsText = flight.stopsText || 'Unknown';
 
-        // Try to extract departure and arrival times
-        const departureTime = flight.departureTime || flight.depTime || flight.departure || 'N/A';
-        const arrivalTime = flight.arrivalTime || flight.arrTime || flight.arrival || 'N/A';
+        // Extract departure and arrival times from legs
+        let departureTime = 'N/A';
+        let arrivalTime = 'N/A';
+        const segments = [];
+
+        if (flight.legs && Array.isArray(flight.legs) && flight.legs.length > 0) {
+          // First leg departure
+          const firstLeg = flight.legs[0];
+          departureTime = firstLeg.departureDateFormatted || firstLeg.departureTime || 'N/A';
+
+          // Last leg arrival
+          const lastLeg = flight.legs[flight.legs.length - 1];
+          arrivalTime = lastLeg.arrivalDateFormatted || lastLeg.arrivalTime || 'N/A';
+
+          // Extract all segments
+          for (const leg of flight.legs) {
+            segments.push({
+              from: leg.departureStation || 'N/A',
+              to: leg.arrivalStation || 'N/A',
+              departure_time: leg.departureDateFormatted || leg.departureTime || 'N/A',
+              arrival_time: leg.arrivalDateFormatted || leg.arrivalTime || 'N/A',
+              duration: leg.durationFormatted || leg.duration || 'N/A'
+            });
+          }
+        }
 
         console.log(`  ✓ Found GoWild fare: $${goWildFare} (${duration}, ${stopsText})`);
+        console.log(`    Departure: ${departureTime}, Arrival: ${arrivalTime}`);
+        console.log(`    Segments: ${segments.length}, Key: ${goWildFareKey.substring(0, 30)}...`);
 
         flights.push({
           origin,
@@ -249,6 +289,8 @@ function parseFlightsFromJSON(flightDataJSON, origin, destination, date) {
           stops: stopsText,
           price: goWildFare,
           duration: duration,
+          selection_key: goWildFareKey,
+          segments: segments,
           available: true,
           scrape_method: 'direct'
         });
