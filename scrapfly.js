@@ -36,8 +36,17 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
       asp: true,              // Anti Scraping Protection - bypasses bot detection
       render_js: true,        // Render JavaScript
       country: 'us',          // Use US proxy
-      rendering_wait: 3000,   // Wait 3 seconds after page load
-      retry: true             // Auto-retry on failure (timeout is auto-managed when retry is enabled)
+      rendering_wait: 5000,   // Wait 5 seconds to ensure FlightData loads
+      retry: true,            // Auto-retry on failure
+      // Inject FlightData into page body for easier extraction (reduces parsing complexity)
+      js: Buffer.from(`
+        if (typeof FlightData !== 'undefined') {
+          const pre = document.createElement('pre');
+          pre.id = 'extracted-flight-data';
+          pre.textContent = FlightData;
+          document.body.prepend(pre);
+        }
+      `).toString('base64')
     };
 
     const scrapflyUrl = `${SCRAPFLY_BASE_URL}?${new URLSearchParams(scrapflyParams).toString()}`;
@@ -101,36 +110,55 @@ function parseFlightsFromHTML(html, origin, destination, date) {
   console.log('HTML saved to scrapfly_output.html for inspection');
 
   try {
-    // Find the FlightData variable in the script tags
+    // Find the FlightData variable
     let flightDataJSON = null;
 
-    $('script').each((i, elem) => {
-      const scriptContent = $(elem).html();
+    // First, try to get it from our injected element (faster, cleaner)
+    const extractedData = $('#extracted-flight-data').text();
+    if (extractedData) {
+      console.log('✓ Found injected FlightData!');
+      try {
+        // The data is already a JSON string, just need to unescape and parse
+        let jsonString = extractedData.replace(/&quot;/g, '"');
+        flightDataJSON = JSON.parse(jsonString);
+        console.log('✓ Successfully parsed injected FlightData JSON');
+      } catch (parseError) {
+        console.error('✗ Error parsing injected FlightData:', parseError.message);
+      }
+    }
 
-      // Look for FlightData = '{...}' pattern
-      if (scriptContent && scriptContent.includes('FlightData')) {
-        const match = scriptContent.match(/FlightData\s*=\s*['"]({[^'"]+})['"]/);
+    // Fallback: Look in script tags (old method)
+    if (!flightDataJSON) {
+      console.log('Injected data not found, searching script tags...');
 
-        if (match && match[1]) {
-          // Found the FlightData JSON string
-          let jsonString = match[1];
+      $('script').each((i, elem) => {
+        const scriptContent = $(elem).html();
 
-          // Replace HTML-escaped quotes with actual quotes
-          jsonString = jsonString.replace(/&quot;/g, '"');
+        // Look for FlightData = '{...}' pattern
+        if (scriptContent && scriptContent.includes('FlightData')) {
+          const match = scriptContent.match(/FlightData\s*=\s*['"]({[^'"]+})['"]/);
 
-          console.log('Found FlightData! Parsing...');
-          console.log('JSON string preview:', jsonString.substring(0, 200));
+          if (match && match[1]) {
+            // Found the FlightData JSON string
+            let jsonString = match[1];
 
-          try {
-            flightDataJSON = JSON.parse(jsonString);
-            console.log('✓ Successfully parsed FlightData JSON');
-          } catch (parseError) {
-            console.error('✗ Error parsing FlightData JSON:', parseError.message);
-            console.error('JSON string preview:', jsonString.substring(0, 500));
+            // Replace HTML-escaped quotes with actual quotes
+            jsonString = jsonString.replace(/&quot;/g, '"');
+
+            console.log('Found FlightData in script tag! Parsing...');
+            console.log('JSON string preview:', jsonString.substring(0, 200));
+
+            try {
+              flightDataJSON = JSON.parse(jsonString);
+              console.log('✓ Successfully parsed FlightData JSON from script');
+            } catch (parseError) {
+              console.error('✗ Error parsing FlightData JSON:', parseError.message);
+              console.error('JSON string preview:', jsonString.substring(0, 500));
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     if (!flightDataJSON) {
       console.log('⚠️ FlightData variable not found in HTML');
