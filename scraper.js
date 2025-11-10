@@ -31,111 +31,63 @@ async function waitForRateLimit() {
   lastRequestTime = Date.now();
 }
 
-// Fetch proxy list from Geonode free API
+// Fetch proxy list from ProxyScrape API
 async function fetchProxyList() {
-  const axios = require('axios');
+  return new Promise((resolve, reject) => {
+    console.log('Fetching proxy list from ProxyScrape API...');
+    const url = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&country=us&proxy_format=protocolipport&format=text&timeout=20000';
 
-  console.log('Fetching proxy list from Geonode free API...');
-  const proxies = [];
+    // Configure HTTPS options to handle SSL certificate issues
+    const options = {
+      rejectUnauthorized: false // Disable SSL certificate verification
+    };
 
-  try {
-    console.log('  - Fetching US proxies from Geonode...');
-    // Geonode free API - up to 500 proxies without authentication
-    const response = await axios.get('https://proxylist.geonode.com/api/proxy-list', {
-      params: {
-        limit: 500,
-        page: 1,
-        sort_by: 'lastChecked',
-        sort_type: 'desc',
-        filterUpTime: 75, // Only proxies with >75% uptime
-        filterLastChecked: 300, // Checked within last 5 minutes
-        country: 'US', // US proxies only
-        protocols: 'http,https' // HTTP/HTTPS protocols
-      },
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
-      },
-      timeout: 15000,
-      httpsAgent: new (require('https').Agent)({
-        rejectUnauthorized: false
-      })
+    https.get(url, options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          // Parse text format: each line is "protocol://ip:port"
+          const lines = data.trim().split('\n').filter(line => line.trim());
+          const proxies = [];
+
+          lines.forEach(line => {
+            line = line.trim();
+            // Format: http://1.2.3.4:8080 or socks5://1.2.3.4:1080
+            const match = line.match(/^(https?|socks[45]):\/\/([^:]+):(\d+)$/);
+            if (match) {
+              proxies.push({
+                host: match[2],
+                port: parseInt(match[3]),
+                protocols: [match[1]],
+                country: 'US',
+                lastChecked: new Date().toISOString(),
+                upTime: 100,
+                responseTime: 0
+              });
+            }
+          });
+
+          if (proxies.length > 0) {
+            // Save to file
+            fs.writeFileSync(PROXY_LIST_FILE, JSON.stringify(proxies, null, 2));
+            console.log(`✓ Fetched ${proxies.length} proxies and saved to ${PROXY_LIST_FILE}`);
+            resolve(proxies);
+          } else {
+            reject(new Error('No valid proxies found in response'));
+          }
+        } catch (error) {
+          reject(new Error('Failed to parse proxy list: ' + error.message));
+        }
+      });
+    }).on('error', (error) => {
+      reject(new Error('Failed to fetch proxy list: ' + error.message));
     });
-
-    if (response.data && response.data.data && Array.isArray(response.data.data)) {
-      response.data.data.forEach(proxy => {
-        if (proxy.ip && proxy.port) {
-          proxies.push({
-            host: proxy.ip,
-            port: parseInt(proxy.port),
-            protocols: proxy.protocols || ['http'],
-            country: proxy.country || 'US',
-            countryName: 'United States',
-            anonymous: proxy.anonymityLevel === 'elite' || proxy.anonymityLevel === 'anonymous',
-            lastChecked: proxy.lastChecked || new Date().toISOString(),
-            upTime: proxy.upTime || 0,
-            responseTime: proxy.responseTime || 0
-          });
-        }
-      });
-      console.log(`    Found ${proxies.length} US proxies from Geonode`);
-    }
-  } catch (error) {
-    console.log(`    Failed to fetch from Geonode: ${error.message}`);
-
-    // Try fallback to ProxyScrape free tier (no auth required for basic)
-    try {
-      console.log('  - Trying ProxyScrape fallback...');
-      const response = await axios.get('https://api.proxyscrape.com/v2/', {
-        params: {
-          request: 'displayproxies',
-          protocol: 'http',
-          timeout: 10000,
-          country: 'us',
-          ssl: 'all',
-          anonymity: 'all'
-        },
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        timeout: 15000,
-        httpsAgent: new (require('https').Agent)({
-          rejectUnauthorized: false
-        })
-      });
-
-      // Parse text format: one proxy per line as IP:PORT
-      const lines = response.data.split('\n').filter(line => line.trim());
-      lines.forEach(line => {
-        const match = line.trim().match(/^(\d+\.\d+\.\d+\.\d+):(\d+)$/);
-        if (match) {
-          proxies.push({
-            host: match[1],
-            port: parseInt(match[2]),
-            protocols: ['http'],
-            country: 'US',
-            countryName: 'United States',
-            anonymous: true,
-            lastChecked: new Date().toISOString(),
-            upTime: 50,
-            responseTime: 0
-          });
-        }
-      });
-      console.log(`    Found ${proxies.length} proxies from ProxyScrape`);
-    } catch (fallbackError) {
-      console.log(`    ProxyScrape fallback also failed: ${fallbackError.message}`);
-    }
-  }
-
-  if (proxies.length > 0) {
-    // Save to file
-    fs.writeFileSync(PROXY_LIST_FILE, JSON.stringify(proxies, null, 2));
-    console.log(`✓ Total: ${proxies.length} proxies fetched and saved to ${PROXY_LIST_FILE}`);
-    return proxies;
-  } else {
-    throw new Error('No valid proxies found from any source');
-  }
+  });
 }
 
 // Load proxy state (remembers where we left off)

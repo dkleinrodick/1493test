@@ -462,9 +462,6 @@
                 // Keep destination empty with placeholder until origin is selected
                 destSelect.innerHTML = '<option value="">First select an origin...</option>';
                 destSelect.disabled = true;
-
-                // Add change listener to filter destinations
-                originSelect.addEventListener('change', filterDestinations);
             } catch (error) {
                 console.error('Failed to load airports:', error);
             }
@@ -480,6 +477,17 @@
                 console.error('Failed to load routes:', error);
                 routes = {};
             }
+        }
+
+        // Initialize everything - wait for both airports and routes to load
+        async function initialize() {
+            await Promise.all([loadAirports(), loadRoutes()]);
+
+            // Only add event listener after both are loaded
+            const originSelect = document.getElementById('origin');
+            originSelect.addEventListener('change', filterDestinations);
+
+            console.log('✓ App initialized - ready to use');
         }
 
         // Filter destinations based on selected origin
@@ -711,8 +719,7 @@
         }
 
         // Initialize
-        loadAirports();
-        loadRoutes();
+        initialize();
     </script>
 </body>
 </html>
