@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Route Test</title>
+</head>
+<body>
+    <h1>Route Filtering Test</h1>
+
+    <label>Origin:</label>
+    <select id="origin">
+        <option value="">Loading...</option>
+    </select>
+    <br><br>
+
+    <label>Destination:</label>
+    <select id="dest" disabled>
+        <option value="">Select origin first</option>
+    </select>
+
+    <div id="debug" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+
+    <script>
+        let airports = {};
+        let routes = {};
+
+        async function load() {
+            try {
+                // Load data
+                const [airportsRes, routesRes] = await Promise.all([
+                    fetch('/api/airports'),
+                    fetch('/api/routes')
+                ]);
+
+                airports = await airportsRes.json();
+                routes = await routesRes.json();
+
+                document.getElementById('debug').innerHTML =
+                    `Loaded ${Object.keys(airports).length} airports and ${Object.keys(routes).length} origins<br>` +
+                    `ORD routes: ${routes['ORD'] ? routes['ORD'].length : 'NOT FOUND'}<br>` +
+                    `ORD destinations: ${routes['ORD'] ? routes['ORD'].join(', ').substring(0, 100) : 'NONE'}...`;
+
+                // Populate origin
+                const originSelect = document.getElementById('origin');
+                originSelect.innerHTML = '<option value="">Select origin</option>';
+
+                Object.keys(airports).sort().forEach(code => {
+                    const opt = document.createElement('option');
+                    opt.value = code;
+                    opt.text = `${airports[code]} (${code})`;
+                    originSelect.add(opt);
+                });
+
+                originSelect.disabled = false;
+                originSelect.onchange = handleOriginChange;
+
+            } catch (error) {
+                document.getElementById('debug').innerHTML = 'ERROR: ' + error.message;
+            }
+        }
+
+        function handleOriginChange(e) {
+            const destSelect = document.getElementById('dest');
+            const origin = e.target.value;
+
+            if (!origin) {
+                destSelect.innerHTML = '<option value="">Select origin first</option>';
+                destSelect.disabled = true;
+                return;
+            }
+
+            const dests = routes[origin] || [];
+
+            document.getElementById('debug').innerHTML += `<br><br>Selected: ${origin}<br>Found ${dests.length} destinations: ${dests.join(', ')}`;
+
+            if (dests.length === 0) {
+                destSelect.innerHTML = `<option value="">No routes from ${origin}</option>`;
+                destSelect.disabled = true;
+                return;
+            }
+
+            destSelect.innerHTML = '<option value="">Select destination</option>';
+            dests.sort().forEach(code => {
+                const opt = document.createElement('option');
+                opt.value = code;
+                opt.text = `${airports[code]} (${code})`;
+                destSelect.add(opt);
+            });
+            destSelect.disabled = false;
+        }
+
+        load();
+    </script>
+</body>
+</html>
