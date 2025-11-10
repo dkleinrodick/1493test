@@ -15,3 +15,8 @@ direct_scraper_output.html
 direct_scraper_screenshot.png
 flightdata_*.txt
 flightdata_*.json
+
+# Test files
+test-*.js
+available_routes.json
+routes-scraper.js
