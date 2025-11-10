@@ -342,22 +342,21 @@
 
                 <div class="options-group">
                     <div class="option-item">
-                        <input type="radio" id="methodDirect" name="method" value="direct">
-                        <label for="methodDirect">Direct Scraping (May not work)</label>
+                        <input type="radio" id="methodApi" name="method" value="api" checked>
+                        <label for="methodApi">🚀 Scrapfly API (Recommended - Works Best)</label>
                     </div>
                     <div class="option-item">
-                        <input type="radio" id="methodApi" name="method" value="api" checked>
-                        <label for="methodApi">Scrapfly API (Recommended)</label>
+                        <input type="radio" id="methodDirect" name="method" value="direct">
+                        <label for="methodDirect">⚠️ Direct Scraping (Usually Blocked)</label>
                     </div>
                     <div class="option-item">
                         <input type="checkbox" id="useCache" checked>
-                        <label for="useCache">Use cached data (if available)</label>
+                        <label for="useCache">📦 Use cached data (if available)</label>
                     </div>
                 </div>
 
                 <div class="button-group">
-                    <button type="submit" class="btn-primary">Search Flights</button>
-                    <button type="button" class="btn-secondary" onclick="testScrapfly()">Test Scrapfly API</button>
+                    <button type="submit" class="btn-primary">🔍 Search Flights</button>
                 </div>
             </form>
 

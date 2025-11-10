@@ -37,8 +37,7 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
       render_js: true,        // Render JavaScript
       country: 'us',          // Use US proxy
       rendering_wait: 3000,   // Wait 3 seconds after page load
-      retry: true,            // Auto-retry on failure
-      timeout: 60000          // 60 second timeout
+      retry: true             // Auto-retry on failure (timeout is auto-managed when retry is enabled)
     };
 
     const scrapflyUrl = `${SCRAPFLY_BASE_URL}?${new URLSearchParams(scrapflyParams).toString()}`;
