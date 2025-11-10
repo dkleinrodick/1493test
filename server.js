@@ -6,7 +6,9 @@ const {
   upsertFlight,
   clearFlights,
   logScrape,
-  getAllRoutes
+  getAllRoutes,
+  upsertRoute,
+  getRoutesByOrigin
 } = require('./database');
 const { scrapeFrontierDirect } = require('./scraper');
 const { scrapeFrontierWithScrapfly, testScrapflyConnection } = require('./scrapfly');
@@ -151,6 +153,17 @@ app.get('/api/airports', (req, res) => {
   res.json(AIRPORTS);
 });
 
+// Get valid routes (destinations for each origin)
+app.get('/api/routes', (req, res) => {
+  try {
+    const routeMap = getRoutesByOrigin();
+    res.json(routeMap);
+  } catch (error) {
+    console.error('Error fetching routes:', error);
+    res.status(500).json({ error: 'Failed to fetch routes' });
+  }
+});
+
 // Search flights
 app.post('/api/search', async (req, res) => {
   const { origin, destination, date, method, useCache, useProxies, robotId } = req.body;
@@ -201,6 +214,11 @@ app.post('/api/search', async (req, res) => {
 
       for (const flight of flights) {
         upsertFlight(flight);
+      }
+
+      // Record this route as valid if flights were found
+      if (flights.length > 0) {
+        upsertRoute(origin, destination);
       }
 
       logScrape(origin, destination, date, scrapeMethod, 'success');

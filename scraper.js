@@ -31,11 +31,11 @@ async function waitForRateLimit() {
   lastRequestTime = Date.now();
 }
 
-// Fetch proxy list from Geonode API
+// Fetch proxy list from ProxyScrape API
 async function fetchProxyList() {
   return new Promise((resolve, reject) => {
-    console.log('Fetching proxy list from Geonode API...');
-    const url = 'https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc';
+    console.log('Fetching proxy list from ProxyScrape API...');
+    const url = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&country=us&proxy_format=protocolipport&format=text&timeout=20000';
 
     https.get(url, (res) => {
       let data = '';
@@ -46,25 +46,34 @@ async function fetchProxyList() {
 
       res.on('end', () => {
         try {
-          const json = JSON.parse(data);
-          if (json.data && Array.isArray(json.data)) {
-            // Convert to simpler format
-            const proxies = json.data.map(proxy => ({
-              host: proxy.ip,
-              port: proxy.port,
-              protocols: proxy.protocols || ['http'],
-              country: proxy.country || 'Unknown',
-              lastChecked: proxy.lastChecked,
-              upTime: proxy.upTime || 0,
-              responseTime: proxy.responseTime || 0
-            }));
+          // Parse text format: each line is "protocol://ip:port"
+          const lines = data.trim().split('\n').filter(line => line.trim());
+          const proxies = [];
 
+          lines.forEach(line => {
+            line = line.trim();
+            // Format: http://1.2.3.4:8080 or socks5://1.2.3.4:1080
+            const match = line.match(/^(https?|socks[45]):\/\/([^:]+):(\d+)$/);
+            if (match) {
+              proxies.push({
+                host: match[2],
+                port: parseInt(match[3]),
+                protocols: [match[1]],
+                country: 'US',
+                lastChecked: new Date().toISOString(),
+                upTime: 100,
+                responseTime: 0
+              });
+            }
+          });
+
+          if (proxies.length > 0) {
             // Save to file
             fs.writeFileSync(PROXY_LIST_FILE, JSON.stringify(proxies, null, 2));
             console.log(`✓ Fetched ${proxies.length} proxies and saved to ${PROXY_LIST_FILE}`);
             resolve(proxies);
           } else {
-            reject(new Error('Invalid response format from proxy API'));
+            reject(new Error('No valid proxies found in response'));
           }
         } catch (error) {
           reject(new Error('Failed to parse proxy list: ' + error.message));

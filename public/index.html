@@ -438,8 +438,9 @@
     <script>
         // Global state
         let airports = {};
+        let routes = {};
 
-        // Load airports on page load
+        // Load airports and routes on page load
         async function loadAirports() {
             try {
                 const response = await fetch('/api/airports');
@@ -457,8 +458,85 @@
                     originSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
                     destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
                 });
+
+                // Add change listener to filter destinations
+                originSelect.addEventListener('change', filterDestinations);
             } catch (error) {
                 console.error('Failed to load airports:', error);
+            }
+        }
+
+        // Load known routes
+        async function loadRoutes() {
+            try {
+                const response = await fetch('/api/routes');
+                routes = await response.json();
+                console.log(`Loaded ${Object.keys(routes).length} origins with known routes`);
+            } catch (error) {
+                console.error('Failed to load routes:', error);
+                routes = {};
+            }
+        }
+
+        // Filter destinations based on selected origin
+        function filterDestinations() {
+            const originSelect = document.getElementById('origin');
+            const destSelect = document.getElementById('destination');
+            const selectedOrigin = originSelect.value;
+
+            // If no origin selected, show all airports
+            if (!selectedOrigin) {
+                populateAllDestinations();
+                return;
+            }
+
+            // Get valid destinations for this origin
+            const validDestinations = routes[selectedOrigin] || [];
+
+            // Clear and repopulate destination dropdown
+            const currentValue = destSelect.value;
+            destSelect.innerHTML = '<option value="">Select destination...</option>';
+
+            if (validDestinations.length > 0) {
+                // Show only valid destinations
+                const sortedDests = validDestinations.sort().map(code => ({
+                    code,
+                    city: airports[code] || code
+                }));
+
+                sortedDests.forEach(({ code, city }) => {
+                    destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+                });
+
+                // Restore selection if still valid
+                if (validDestinations.includes(currentValue)) {
+                    destSelect.value = currentValue;
+                }
+            } else {
+                // No known routes - show all airports with a note
+                populateAllDestinations();
+                // Could add a note here that these are unverified routes
+            }
+        }
+
+        // Populate all destinations
+        function populateAllDestinations() {
+            const destSelect = document.getElementById('destination');
+            const currentValue = destSelect.value;
+
+            destSelect.innerHTML = '<option value="">Select destination...</option>';
+
+            const sortedAirports = Object.entries(airports).sort((a, b) =>
+                a[1].localeCompare(b[1])
+            );
+
+            sortedAirports.forEach(([code, city]) => {
+                destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+            });
+
+            // Restore previous selection
+            if (currentValue) {
+                destSelect.value = currentValue;
             }
         }
 
@@ -624,6 +702,7 @@
 
         // Initialize
         loadAirports();
+        loadRoutes();
     </script>
 </body>
 </html>

@@ -33,8 +33,19 @@ db.exec(`
     scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS routes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    origin TEXT NOT NULL,
+    destination TEXT NOT NULL,
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    flight_count INTEGER DEFAULT 0,
+    UNIQUE(origin, destination)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_route_date ON flights(origin, destination, date);
   CREATE INDEX IF NOT EXISTS idx_scraped_at ON flights(scraped_at);
+  CREATE INDEX IF NOT EXISTS idx_routes_origin ON routes(origin);
 `);
 
 // Add duration column if it doesn't exist (migration)
@@ -112,6 +123,72 @@ const db_functions = {
       ORDER BY origin, destination
     `);
     return stmt.all();
+  },
+
+  // Add or update a route (called when flights are found)
+  upsertRoute: (origin, destination) => {
+    const stmt = db.prepare(`
+      INSERT INTO routes (origin, destination, flight_count)
+      VALUES (?, ?, 1)
+      ON CONFLICT(origin, destination)
+      DO UPDATE SET
+        last_seen = CURRENT_TIMESTAMP,
+        flight_count = flight_count + 1
+    `);
+    return stmt.run(origin, destination);
+  },
+
+  // Get valid destinations for an origin
+  getDestinationsForOrigin: (origin) => {
+    const stmt = db.prepare(`
+      SELECT destination, last_seen, flight_count
+      FROM routes
+      WHERE origin = ?
+      ORDER BY destination
+    `);
+    return stmt.all(origin);
+  },
+
+  // Get all known routes with metadata
+  getKnownRoutes: () => {
+    const stmt = db.prepare(`
+      SELECT origin, destination, first_seen, last_seen, flight_count
+      FROM routes
+      ORDER BY origin, destination
+    `);
+    return stmt.all();
+  },
+
+  // Get routes organized by origin (returns map)
+  getRoutesByOrigin: () => {
+    const stmt = db.prepare(`
+      SELECT origin, destination
+      FROM routes
+      ORDER BY origin, destination
+    `);
+    const routes = stmt.all();
+
+    // Organize into map
+    const routeMap = {};
+    routes.forEach(route => {
+      if (!routeMap[route.origin]) {
+        routeMap[route.origin] = [];
+      }
+      routeMap[route.origin].push(route.destination);
+    });
+
+    return routeMap;
+  },
+
+  // Check if a route is known
+  isRouteKnown: (origin, destination) => {
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM routes
+      WHERE origin = ? AND destination = ?
+    `);
+    const result = stmt.get(origin, destination);
+    return result.count > 0;
   }
 };
 
