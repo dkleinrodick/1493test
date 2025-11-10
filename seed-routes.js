@@ -1067,6 +1067,8 @@ function seedRoutes() {
     console.log(`\nSeeding complete!`);
     console.log(`✅ Successfully added: ${successCount} routes`);
     console.log(`❌ Failed: ${failCount} routes`);
+
+    return successCount;
 }
 
 // Run if called directly

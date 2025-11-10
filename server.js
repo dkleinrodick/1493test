@@ -301,12 +301,38 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Auto-seed routes on startup if database is empty
+async function autoSeedRoutes() {
+  try {
+    const routes = getAllRoutes();
+    const routeCount = Object.keys(routes).length;
+
+    if (routeCount === 0) {
+      console.log('📋 Routes table is empty - auto-seeding Frontier routes...');
+
+      // Import seed function
+      const { seedRoutes } = require('./seed-routes');
+      const seeded = await seedRoutes();
+
+      console.log(`✓ Auto-seeded ${seeded} routes to database`);
+    } else {
+      console.log(`✓ Found ${routeCount} origins with routes in database`);
+    }
+  } catch (error) {
+    console.error('⚠ Failed to auto-seed routes:', error.message);
+    console.log('You can manually seed routes by running: node seed-routes.js');
+  }
+}
+
 // Start server
 async function startServer() {
   try {
     // Initialize proxy list on startup
     console.log('🚀 Starting Frontier GoWild Scraper...');
     await initializeProxyList();
+
+    // Auto-seed routes if needed
+    await autoSeedRoutes();
     console.log('');
 
     // Start listening
