@@ -286,8 +286,8 @@ app.post('/api/search-bulk', async (req, res) => {
   }
 
   try {
-    // Get all valid destinations for this origin
-    const routes = getAllRoutes();
+    // Get all valid destinations for this origin from seeded routes table
+    const routes = getRoutesByOrigin();
     const destinations = routes[origin] || [];
 
     if (destinations.length === 0) {
@@ -437,16 +437,6 @@ app.post('/api/search-bulk', async (req, res) => {
   }
 });
 
-// Get all cached routes
-app.get('/api/routes', (req, res) => {
-  try {
-    const routes = getAllRoutes();
-    res.json(routes);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Test Scrapfly connection
 app.get('/api/test-scrapfly', async (req, res) => {
   try {
@@ -471,7 +461,7 @@ app.get('/api/health', (req, res) => {
 // Auto-seed routes on startup if database is empty
 async function autoSeedRoutes() {
   try {
-    const routes = getAllRoutes();
+    const routes = getRoutesByOrigin();
     const routeCount = Object.keys(routes).length;
 
     if (routeCount === 0) {
