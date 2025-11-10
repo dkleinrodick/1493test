@@ -2,18 +2,16 @@
 
 A web application that scrapes Frontier Airlines for GoWild flight availability between specific airports on specific dates.
 
-## Features
+## 🎯 Features
 
-- ✅ Search for GoWild flights by origin, destination, and date
-- ✅ Two scraping modes:
-  - **Direct Scraping**: Attempts to scrape Frontier's booking page directly (currently blocked by 403)
-  - **Browse.ai API**: Uses Browse.ai's scraping service (requires setup)
-- ✅ SQLite database caching (6-hour cache by default)
-- ✅ Rate limiting (10 seconds between direct requests, 2 seconds for API)
-- ✅ Clean, responsive web interface
-- ✅ Support for 140+ airports and 882 routes
+- ✅ **Scrapfly API Integration** - Bypasses bot protection and extracts flight data
+- ✅ **Smart Parsing** - Extracts FlightData JSON directly from rendered pages
+- ✅ **SQLite Caching** - 6-hour cache reduces API calls
+- ✅ **140+ Airports** - Complete Frontier network coverage (882 routes)
+- ✅ **Clean UI** - Responsive interface with city-based airport sorting
+- ✅ **Detailed Flight Info** - Price, duration, stops, times
 
-## Installation
+## 🚀 Quick Start
 
 ```bash
 # Install dependencies
@@ -21,29 +19,28 @@ npm install
 
 # Start the server
 npm start
-
-# For development with auto-reload
-npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+Open `http://localhost:3000` in your browser.
 
-## Current Status
+## ✅ Current Status
 
-### ✅ What's Working
-- Express server with REST API
-- SQLite database with flight caching
-- Frontend interface with airport selection
-- Rate limiting system
-- Browse.ai API integration (configured)
+### What's Working
+- ✅ **Scrapfly API** - Fully functional, extracts GoWild fares
+- ✅ **FlightData Parsing** - Extracts from JavaScript variable
+- ✅ **Database** - Stores flights with duration, stops, price
+- ✅ **UI** - City-sorted airports, real-time results
+- ✅ **Error Handling** - Detailed error messages and suggestions
 
-### ⚠️ Known Issues
-1. **Direct scraping is blocked (403 error)**: Frontier's website blocks automated requests. This is expected and why Browse.ai integration exists.
-2. **Browse.ai robot needs configuration**: You need to create a robot on Browse.ai that scrapes Frontier's flight results.
+### Why Direct Scraping Doesn't Work
+Direct scraping fails because:
+1. **Frontier blocks automated requests** (403 Forbidden)
+2. **JavaScript execution required** - FlightData loads via JS
+3. **Would need Puppeteer** - Headless Chrome to render page
 
-## Browse.ai Setup Instructions
+**Solution:** Scrapfly already does all of this! It renders JavaScript, bypasses bot protection, and returns the fully rendered page. Just use Scrapfly mode (default).
 
-Since direct scraping is blocked by Frontier, you'll need to configure Browse.ai:
+## 🔧 How It Works
 
 ### Step 1: Create a Robot
 1. Go to https://browse.ai
