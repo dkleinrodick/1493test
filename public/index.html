@@ -456,7 +456,7 @@
 
                 // Populate ONLY origin dropdown initially
                 sortedAirports.forEach(([code, city]) => {
-                    originSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+                    originSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
                 });
 
                 // Keep destination empty with placeholder until origin is selected
@@ -506,14 +506,16 @@
             destSelect.innerHTML = '<option value="">Select destination...</option>';
 
             if (validDestinations.length > 0) {
-                // Show only valid destinations for this origin
-                const sortedDests = validDestinations.sort().map(code => ({
-                    code,
-                    city: airports[code] || code
-                }));
+                // Show only valid destinations for this origin, sorted by city name
+                const sortedDests = validDestinations
+                    .map(code => ({
+                        code,
+                        city: airports[code] || code
+                    }))
+                    .sort((a, b) => a.city.localeCompare(b.city));
 
                 sortedDests.forEach(({ code, city }) => {
-                    destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+                    destSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
                 });
 
                 // Restore selection if still valid
@@ -539,7 +541,7 @@
             );
 
             sortedAirports.forEach(([code, city]) => {
-                destSelect.innerHTML += `<option value="${code}">${code} - ${city}</option>`;
+                destSelect.innerHTML += `<option value="${code}">${city} (${code})</option>`;
             });
 
             // Restore previous selection
