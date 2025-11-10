@@ -187,13 +187,18 @@ app.post('/api/search', async (req, res) => {
     if (useCache !== false) {
       const cachedFlights = getCachedFlights(origin, destination, date);
       if (cachedFlights.length > 0) {
-        console.log(`Returning ${cachedFlights.length} cached flights`);
+        console.log(`✓ Cache hit: Returning ${cachedFlights.length} cached flight(s) for ${origin}-${destination} on ${date}`);
+        console.log(`  Cached at: ${cachedFlights[0].scraped_at}`);
         return res.json({
           flights: cachedFlights,
           cached: true,
           cachedAt: cachedFlights[0].scraped_at
         });
+      } else {
+        console.log(`⚡ Cache miss: No cached data for ${origin}-${destination} on ${date}, scraping fresh...`);
       }
+    } else {
+      console.log(`⚡ Cache disabled: Scraping fresh data for ${origin}-${destination} on ${date}`);
     }
 
     // Scrape fresh data
@@ -309,12 +314,17 @@ app.post('/api/search-bulk', async (req, res) => {
       const promises = destBatch.map(async (destination) => {
         try {
           // Check cache first if enabled
+          let cachedFlights = [];
+          let usedCache = false;
+
           if (useCache !== false) {
-            const cachedFlights = getCachedFlights(origin, destination, date);
+            cachedFlights = getCachedFlights(origin, destination, date);
             if (cachedFlights.length > 0) {
-              console.log(`  ✓ ${origin}-${destination}: ${cachedFlights.length} flights (cached)`);
+              console.log(`  ✓ ${origin}-${destination}: ${cachedFlights.length} flight(s) from cache`);
               cached++;
               completed++;
+              usedCache = true;
+
               return {
                 origin,
                 destination,
@@ -322,10 +332,12 @@ app.post('/api/search-bulk', async (req, res) => {
                 cached: true,
                 cachedAt: cachedFlights[0].scraped_at
               };
+            } else {
+              console.log(`  ⚡ ${origin}-${destination}: No cache found, scraping fresh...`);
             }
           }
 
-          // Scrape fresh data
+          // No cache OR cache disabled - scrape fresh data
           let flights = [];
           try {
             if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
@@ -340,7 +352,7 @@ app.post('/api/search-bulk', async (req, res) => {
               upsertFlight(flight);
             }
 
-            console.log(`  ✓ ${origin}-${destination}: ${flights.length} flights (scraped)`);
+            console.log(`  ✓ ${origin}-${destination}: ${flights.length} flight(s) scraped fresh`);
             scraped++;
             completed++;
 
