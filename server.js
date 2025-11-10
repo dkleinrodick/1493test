@@ -9,7 +9,7 @@ const {
   getAllRoutes
 } = require('./database');
 const { scrapeFrontierDirect } = require('./scraper');
-const { scrapeFrontierWithBrowseAI, testBrowseAIConnection } = require('./browseai');
+const { scrapeFrontierWithScrapfly, testScrapflyConnection } = require('./scrapfly');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -189,8 +189,8 @@ app.post('/api/search', async (req, res) => {
     let error = null;
 
     try {
-      if (scrapeMethod === 'api' || scrapeMethod === 'browseai') {
-        flights = await scrapeFrontierWithBrowseAI(origin, destination, date, robotId);
+      if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
+        flights = await scrapeFrontierWithScrapfly(origin, destination, date);
       } else {
         flights = await scrapeFrontierDirect(origin, destination, date);
       }
@@ -244,7 +244,7 @@ app.post('/api/search', async (req, res) => {
 
     // Add helpful suggestions based on error type
     if (error.details?.type === 'blocked') {
-      errorResponse.suggestion = 'Try using "Browse.ai API" mode instead of direct scraping.';
+      errorResponse.suggestion = 'Try using "Scrapfly API" mode instead of direct scraping.';
     }
 
     res.status(500).json(errorResponse);
@@ -261,17 +261,13 @@ app.get('/api/routes', (req, res) => {
   }
 });
 
-// Test Browse.ai connection
-app.get('/api/test-browseai', async (req, res) => {
+// Test Scrapfly connection
+app.get('/api/test-scrapfly', async (req, res) => {
   try {
-    const robots = await testBrowseAIConnection();
+    const result = await testScrapflyConnection();
     res.json({
       success: true,
-      robots: robots.map(r => ({
-        id: r.id,
-        name: r.name,
-        status: r.status
-      }))
+      ...result
     });
   } catch (error) {
     res.status(500).json({

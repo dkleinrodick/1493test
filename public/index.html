@@ -342,12 +342,12 @@
 
                 <div class="options-group">
                     <div class="option-item">
-                        <input type="radio" id="methodDirect" name="method" value="direct" checked>
-                        <label for="methodDirect">Direct Scraping</label>
+                        <input type="radio" id="methodDirect" name="method" value="direct">
+                        <label for="methodDirect">Direct Scraping (May not work)</label>
                     </div>
                     <div class="option-item">
-                        <input type="radio" id="methodApi" name="method" value="api">
-                        <label for="methodApi">Browse.ai API</label>
+                        <input type="radio" id="methodApi" name="method" value="api" checked>
+                        <label for="methodApi">Scrapfly API (Recommended)</label>
                     </div>
                     <div class="option-item">
                         <input type="checkbox" id="useCache" checked>
@@ -357,7 +357,7 @@
 
                 <div class="button-group">
                     <button type="submit" class="btn-primary">Search Flights</button>
-                    <button type="button" class="btn-secondary" onclick="testBrowseAI()">Test Browse.ai</button>
+                    <button type="button" class="btn-secondary" onclick="testScrapfly()">Test Scrapfly API</button>
                 </div>
             </form>
 
@@ -568,7 +568,7 @@
                             <div class="flight-detail-item">
                                 <span class="detail-label">Method</span>
                                 <span class="detail-value">
-                                    <span class="badge ${flight.scrape_method === 'browseai' ? 'badge-api' : 'badge-fresh'}">
+                                    <span class="badge ${flight.scrape_method === 'scrapfly' ? 'badge-api' : 'badge-fresh'}">
                                         ${flight.scrape_method}
                                     </span>
                                 </span>
@@ -579,20 +579,22 @@
             }
         }
 
-        // Test Browse.ai connection
-        async function testBrowseAI() {
+        // Test Scrapfly connection
+        async function testScrapfly() {
             try {
-                const response = await fetch('/api/test-browseai');
+                const response = await fetch('/api/test-scrapfly');
                 const data = await response.json();
 
                 if (data.success) {
-                    alert(`Browse.ai connected successfully!\n\nAvailable robots: ${data.robots.length}\n\n` +
-                          data.robots.map(r => `- ${r.name} (${r.id})`).join('\n'));
+                    alert(`✓ Scrapfly connected successfully!\n\n` +
+                          `API Cost: ${data.cost || 'N/A'}\n` +
+                          `Remaining Credit: ${data.remainingCredit || 'N/A'}\n\n` +
+                          `You're ready to scrape flights!`);
                 } else {
-                    alert('Browse.ai connection failed:\n' + data.error);
+                    alert('✗ Scrapfly connection failed:\n' + data.error);
                 }
             } catch (error) {
-                alert('Error testing Browse.ai: ' + error.message);
+                alert('Error testing Scrapfly: ' + error.message);
             }
         }
 

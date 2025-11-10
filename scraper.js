@@ -185,8 +185,8 @@ async function scrapeFrontierDirect(origin, destination, date) {
     // Check for specific error types
     if (error.response?.status === 403) {
       errorDetails.type = 'blocked';
-      errorDetails.message = 'Frontier blocked the request (403 Forbidden). This typically means bot detection is active. Please use Browse.ai API mode instead.';
-      errorDetails.suggestion = 'Switch to "Browse.ai API" mode in the interface';
+      errorDetails.message = 'Frontier blocked the request (403 Forbidden). This typically means bot detection is active. Please use Scrapfly API mode instead.';
+      errorDetails.suggestion = 'Switch to "Scrapfly API (Recommended)" mode in the interface';
     } else if (error.response?.status === 404) {
       errorDetails.type = 'not_found';
       errorDetails.message = 'Flight search page not found (404). The URL structure may have changed.';
