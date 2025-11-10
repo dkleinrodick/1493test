@@ -292,8 +292,13 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
           console.log('FlightData preview:', flightDataString.substring(0, 300) + '...');
 
           // FlightData is HTML-encoded JSON string, decode it first
-          // Replace &quot; with " to make it valid JSON
-          const cleanedString = flightDataString.replace(/&quot;/g, '"');
+          // Replace all HTML entities to make it valid JSON
+          const cleanedString = flightDataString
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
 
           // Save cleaned version
           fs.writeFileSync('flightdata_cleaned.txt', cleanedString);
@@ -497,7 +502,12 @@ function extractFlightDataFromHTML(html) {
       const altMatch = html.match(/var\s+FlightData\s*=\s*'([^']*)';/);
       if (altMatch) {
         console.log('Found FlightData with single quotes');
-        const cleanedString = altMatch[1].replace(/&quot;/g, '"');
+        const cleanedString = altMatch[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&#39;/g, "'")
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>');
         const parsed = JSON.parse(cleanedString);
         console.log('✓ Successfully extracted and parsed FlightData from HTML');
         return parsed;
@@ -517,7 +527,12 @@ function extractFlightDataFromHTML(html) {
     const encodedString = flightDataMatch[1];
 
     // Decode HTML entities
-    const cleanedString = encodedString.replace(/&quot;/g, '"');
+    const cleanedString = encodedString
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
 
     // Parse JSON
     const parsed = JSON.parse(cleanedString);
