@@ -18,6 +18,7 @@ flightdata_*.json
 
 # Test files
 test-*.js
+test-*.html
 available_routes.json
 routes-scraper.js
 
