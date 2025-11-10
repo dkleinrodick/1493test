@@ -108,16 +108,40 @@ async function scrapeFrontierDirect(origin, destination, date) {
 
       if (flightDataString) {
         try {
+          // Save raw FlightData for debugging
+          fs.writeFileSync('flightdata_raw.txt', flightDataString);
+          console.log('✓ Raw FlightData saved to flightdata_raw.txt');
+          console.log(`FlightData length: ${flightDataString.length} characters`);
+          console.log('FlightData preview:', flightDataString.substring(0, 300) + '...');
+
           // FlightData is HTML-encoded JSON string, decode it first
           // Replace &quot; with " to make it valid JSON
           const cleanedString = flightDataString.replace(/&quot;/g, '"');
 
+          // Save cleaned version
+          fs.writeFileSync('flightdata_cleaned.txt', cleanedString);
+          console.log('✓ Cleaned FlightData saved to flightdata_cleaned.txt');
+
           console.log('Parsing cleaned FlightData string...');
           flightDataJSON = JSON.parse(cleanedString);
           console.log('✓ Successfully parsed FlightData JSON');
+
+          // Save parsed JSON for inspection
+          fs.writeFileSync('flightdata_parsed.json', JSON.stringify(flightDataJSON, null, 2));
+          console.log('✓ Parsed JSON saved to flightdata_parsed.json');
+
+          // Log structure info
+          if (flightDataJSON.journeys) {
+            console.log(`JSON contains ${flightDataJSON.journeys.length} journey(s)`);
+          } else {
+            console.log('⚠️ JSON does not contain journeys array');
+            console.log('JSON keys:', Object.keys(flightDataJSON).join(', '));
+          }
         } catch (parseError) {
           console.error('⚠️ Error parsing FlightData:', parseError.message);
-          console.log('FlightData preview:', flightDataString.substring(0, 200));
+          console.error('Parse error stack:', parseError.stack);
+          console.log('FlightData preview (first 500 chars):', flightDataString.substring(0, 500));
+          console.log('FlightData preview (last 500 chars):', flightDataString.substring(Math.max(0, flightDataString.length - 500)));
         }
       }
     } catch (timeoutError) {
@@ -156,8 +180,19 @@ async function scrapeFrontierDirect(origin, destination, date) {
 
     await browser.close();
 
+    // If we didn't get FlightData from the page, try parsing from saved HTML
+    if (!flightDataJSON && fs.existsSync('direct_scraper_output.html')) {
+      console.log('⚠️ FlightData not available from page, trying to parse from saved HTML...');
+      flightDataJSON = extractFlightDataFromHTML(fs.readFileSync('direct_scraper_output.html', 'utf8'));
+    }
+
     if (!flightDataJSON) {
       console.log('⚠️ FlightData is null or could not be parsed');
+      console.log('💡 Please share the following files for debugging:');
+      console.log('   - direct_scraper_output.html');
+      console.log('   - direct_scraper_screenshot.png');
+      console.log('   - flightdata_raw.txt (if it exists)');
+      console.log('   - flightdata_cleaned.txt (if it exists)');
       return [];
     }
 
@@ -205,6 +240,58 @@ async function scrapeFrontierDirect(origin, destination, date) {
     const detailedError = new Error(errorDetails.message);
     detailedError.details = errorDetails;
     throw detailedError;
+  }
+}
+
+function extractFlightDataFromHTML(html) {
+  try {
+    console.log('Attempting to extract FlightData from HTML...');
+
+    // Look for the script tag that defines FlightData
+    // Pattern: var FlightData = "...";
+    const flightDataMatch = html.match(/var\s+FlightData\s*=\s*"([^"]*)";/);
+
+    if (!flightDataMatch) {
+      console.log('⚠️ Could not find FlightData variable in HTML');
+
+      // Try alternative pattern with single quotes
+      const altMatch = html.match(/var\s+FlightData\s*=\s*'([^']*)';/);
+      if (altMatch) {
+        console.log('Found FlightData with single quotes');
+        const cleanedString = altMatch[1].replace(/&quot;/g, '"');
+        const parsed = JSON.parse(cleanedString);
+        console.log('✓ Successfully extracted and parsed FlightData from HTML');
+        return parsed;
+      }
+
+      // Try to find it in a different format
+      const jsonMatch = html.match(/FlightData\s*=\s*({.*?});/s);
+      if (jsonMatch) {
+        console.log('Found FlightData as object literal');
+        return JSON.parse(jsonMatch[1]);
+      }
+
+      return null;
+    }
+
+    console.log('✓ Found FlightData in HTML');
+    const encodedString = flightDataMatch[1];
+
+    // Decode HTML entities
+    const cleanedString = encodedString.replace(/&quot;/g, '"');
+
+    // Parse JSON
+    const parsed = JSON.parse(cleanedString);
+    console.log('✓ Successfully extracted and parsed FlightData from HTML');
+
+    // Save for debugging
+    fs.writeFileSync('flightdata_from_html.json', JSON.stringify(parsed, null, 2));
+    console.log('✓ Saved parsed JSON to flightdata_from_html.json');
+
+    return parsed;
+  } catch (error) {
+    console.error('⚠️ Error extracting FlightData from HTML:', error.message);
+    return null;
   }
 }
 
