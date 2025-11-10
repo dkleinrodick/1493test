@@ -111,29 +111,29 @@ function saveProxyState(index, lastWorkingProxy = null) {
 }
 
 // Load or fetch proxy list
+// Fetches fresh proxies every time the program starts
 async function initializeProxyList() {
-  // Try to load from file first
-  if (fs.existsSync(PROXY_LIST_FILE)) {
-    try {
-      proxyList = JSON.parse(fs.readFileSync(PROXY_LIST_FILE, 'utf8'));
-      console.log(`Loaded ${proxyList.length} proxies from cache`);
+  console.log('Initializing proxy list...');
 
-      // Check if the list is old (more than 24 hours)
-      const stats = fs.statSync(PROXY_LIST_FILE);
-      const age = Date.now() - stats.mtimeMs;
-      const hoursOld = age / (1000 * 60 * 60);
-
-      if (hoursOld > 24) {
-        console.log(`Proxy list is ${hoursOld.toFixed(1)} hours old, fetching fresh list...`);
-        proxyList = await fetchProxyList();
-      }
-    } catch (error) {
-      console.log('Error loading cached proxy list:', error.message);
-      proxyList = await fetchProxyList();
-    }
-  } else {
-    // Fetch new list
+  // Always fetch fresh proxies on startup
+  try {
     proxyList = await fetchProxyList();
+    console.log(`✓ Initialized with ${proxyList.length} fresh proxies`);
+  } catch (error) {
+    console.error('Failed to fetch fresh proxies:', error.message);
+
+    // Fallback to cached list if fetch fails
+    if (fs.existsSync(PROXY_LIST_FILE)) {
+      try {
+        proxyList = JSON.parse(fs.readFileSync(PROXY_LIST_FILE, 'utf8'));
+        console.log(`⚠ Using cached proxy list (${proxyList.length} proxies)`);
+      } catch (cacheError) {
+        console.error('Failed to load cached proxies:', cacheError.message);
+        proxyList = [];
+      }
+    } else {
+      proxyList = [];
+    }
   }
 
   // Load state

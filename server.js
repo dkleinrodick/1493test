@@ -10,7 +10,7 @@ const {
   upsertRoute,
   getRoutesByOrigin
 } = require('./database');
-const { scrapeFrontierDirect } = require('./scraper');
+const { scrapeFrontierDirect, initializeProxyList } = require('./scraper');
 const { scrapeFrontierWithScrapfly, testScrapflyConnection } = require('./scrapfly');
 
 const app = express();
@@ -302,7 +302,22 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`API available at http://localhost:${PORT}/api`);
-});
+async function startServer() {
+  try {
+    // Initialize proxy list on startup
+    console.log('🚀 Starting Frontier GoWild Scraper...');
+    await initializeProxyList();
+    console.log('');
+
+    // Start listening
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`API available at http://localhost:${PORT}/api`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
