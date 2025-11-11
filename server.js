@@ -209,9 +209,12 @@ app.post('/api/search', async (req, res) => {
     try {
       if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
         flights = await scrapeFrontierWithScrapfly(origin, destination, date);
+      } else if (scrapeMethod === 'custom_proxies') {
+        // Use custom premium proxies with Playwright
+        flights = await scrapeFrontierDirect(origin, destination, date, true, true);
       } else {
-        // Pass useProxies parameter to direct scraper
-        flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false);
+        // Use free proxies or direct connection
+        flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false, false);
       }
 
       // Clear old flights and insert new ones
@@ -343,8 +346,12 @@ app.post('/api/search-bulk', async (req, res) => {
           try {
             if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
               flights = await scrapeFrontierWithScrapfly(origin, destination, date);
+            } else if (scrapeMethod === 'custom_proxies') {
+              // Use custom premium proxies
+              flights = await scrapeFrontierDirect(origin, destination, date, true, true);
             } else {
-              flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false);
+              // Use free proxies or direct connection
+              flights = await scrapeFrontierDirect(origin, destination, date, useProxies || false, false);
             }
 
             // Save to database

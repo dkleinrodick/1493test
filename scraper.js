@@ -15,7 +15,9 @@ const MIN_REQUEST_INTERVAL = config.MIN_REQUEST_INTERVAL || 10000;
 // Proxy configuration
 const PROXY_STATE_FILE = 'proxy_state.json';
 const PROXY_LIST_FILE = 'proxy_list.json';
+const CUSTOM_PROXIES_FILE = 'custom_proxies.txt';
 let proxyList = [];
+let customProxies = []; // User-provided premium proxies
 let proxyPool = []; // Available proxies for parallel requests
 let proxyInUse = new Map(); // Track proxies currently in use
 let USE_PROXIES = config.USE_PROXIES || false; // Can be overridden by config.js
@@ -112,11 +114,63 @@ function saveProxyState(index, lastWorkingProxy = null) {
   fs.writeFileSync(PROXY_STATE_FILE, JSON.stringify(state, null, 2));
 }
 
+// Load custom proxies from file (format: host:port:username:password)
+function loadCustomProxies() {
+  try {
+    if (!fs.existsSync(CUSTOM_PROXIES_FILE)) {
+      console.log('No custom proxies file found');
+      return [];
+    }
+
+    const content = fs.readFileSync(CUSTOM_PROXIES_FILE, 'utf8');
+    const lines = content.trim().split('\n').filter(line => line.trim());
+    const proxies = [];
+
+    lines.forEach((line, index) => {
+      line = line.trim();
+      // Format: host:port:username:password
+      const parts = line.split(':');
+      if (parts.length === 4) {
+        proxies.push({
+          id: `custom-proxy-${index}`,
+          host: parts[0],
+          port: parseInt(parts[1]),
+          username: parts[2],
+          password: parts[3],
+          protocol: 'http',
+          authenticated: true,
+          inUse: false
+        });
+      }
+    });
+
+    console.log(`✓ Loaded ${proxies.length} custom authenticated proxies`);
+    return proxies;
+  } catch (error) {
+    console.error('Failed to load custom proxies:', error.message);
+    return [];
+  }
+}
+
 // Load or fetch proxy list and initialize proxy pool
-async function initializeProxyList() {
+async function initializeProxyList(useCustomProxies = false) {
   console.log('Initializing proxy pool for parallel requests...');
 
-  // Always fetch fresh proxies on startup
+  if (useCustomProxies) {
+    // Use custom premium proxies
+    customProxies = loadCustomProxies();
+    if (customProxies.length > 0) {
+      proxyPool = customProxies;
+      proxyInUse.clear();
+      console.log(`✓ Proxy pool initialized with ${proxyPool.length} custom proxies (authenticated)`);
+      console.log(`✓ Ready for ${Math.min(MAX_PARALLEL_PROXIES, proxyPool.length)} simultaneous requests`);
+      return customProxies;
+    } else {
+      console.log('⚠️ No custom proxies available, falling back to free proxies');
+    }
+  }
+
+  // Use free proxies from GitHub
   try {
     proxyList = await fetchProxyList();
     console.log(`✓ Fetched ${proxyList.length} fresh proxies from GitHub`);
@@ -184,18 +238,18 @@ function getNextProxy() {
   return acquireProxy();
 }
 
-async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_PROXIES) {
+async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_PROXIES, useCustomProxies = false) {
   await waitForRateLimit();
 
   const url = `https://booking.flyfrontier.com/Flight/InternalSelect?o1=${origin}&d1=${destination}&dd1=${date}&adt=1&umnr=false&loy=false&mon=true&ftype=GW`;
 
   console.log(`Direct scraping with Playwright: ${origin} -> ${destination} on ${date}`);
   console.log(`Target URL: ${url}`);
-  console.log(`Proxy mode: ${useProxies ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Proxy mode: ${useProxies ? (useCustomProxies ? 'CUSTOM PROXIES' : 'FREE PROXIES') : 'DISABLED'}`);
 
   // Initialize proxy list if needed
   if (useProxies && proxyPool.length === 0) {
-    await initializeProxyList();
+    await initializeProxyList(useCustomProxies);
   }
 
   const MAX_PROXY_RETRIES = useProxies ? (config.MAX_PROXY_RETRIES || 3) : 1;
@@ -237,9 +291,18 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
 
       // Add proxy if enabled
       if (useProxies && currentProxy) {
-        launchOptions.proxy = {
+        const proxyConfig = {
           server: `http://${currentProxy.host}:${currentProxy.port}`
         };
+
+        // Add authentication if proxy requires it (custom proxies)
+        if (currentProxy.authenticated && currentProxy.username && currentProxy.password) {
+          proxyConfig.username = currentProxy.username;
+          proxyConfig.password = currentProxy.password;
+          console.log(`  Using authenticated proxy (username: ${currentProxy.username.substring(0, 20)}...)`);
+        }
+
+        launchOptions.proxy = proxyConfig;
       }
 
       browser = await chromium.launch(launchOptions);
