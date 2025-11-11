@@ -361,6 +361,44 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
     console.log('✓ HTML saved to direct_scraper_output.html');
     console.log('✓ Screenshot saved to direct_scraper_screenshot.png');
 
+    // Check for bot detection / challenge page
+    const pageTitle = await page.title();
+    const htmlLower = html.toLowerCase();
+
+    const botDetectionIndicators = [
+      'press and hold',
+      'verify you are human',
+      'verify you\'re human',
+      'just a moment',
+      'checking your browser',
+      'challenge',
+      'cloudflare',
+      'please verify',
+      'security check',
+      'are you a robot',
+      'captcha'
+    ];
+
+    const hasBotDetection = botDetectionIndicators.some(indicator =>
+      htmlLower.includes(indicator) || pageTitle.toLowerCase().includes(indicator)
+    );
+
+    if (hasBotDetection) {
+      console.log('⚠️ BOT DETECTION PAGE DETECTED!');
+      console.log(`   Page title: "${pageTitle}"`);
+      console.log('   This proxy is blocked, trying next proxy...');
+
+      await browser.close();
+      if (proxyId) releaseProxy(proxyId);
+
+      // Skip to next proxy
+      if (useProxies && attempt < MAX_PROXY_RETRIES) {
+        continue;
+      } else {
+        throw new Error('Bot detection encountered on all proxies');
+      }
+    }
+
     // Wait for FlightData to be defined on the page
     let flightDataJSON = null;
     try {
@@ -414,6 +452,27 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
           console.error('Parse error stack:', parseError.stack);
           console.log('FlightData preview (first 500 chars):', flightDataString.substring(0, 500));
           console.log('FlightData preview (last 500 chars):', flightDataString.substring(Math.max(0, flightDataString.length - 500)));
+
+          // Parse error often indicates bot detection page returned garbage
+          console.log('⚠️ Parse error likely indicates bot detection or malformed response');
+          console.log('   Checking if this is a bot detection page...');
+
+          const htmlCheck = html.toLowerCase();
+          const isBotPage = botDetectionIndicators.some(indicator => htmlCheck.includes(indicator));
+
+          if (isBotPage) {
+            console.log('✓ Confirmed: This is a bot detection page');
+            console.log('   Moving to next proxy...');
+
+            await browser.close();
+            if (proxyId) releaseProxy(proxyId);
+
+            if (useProxies && attempt < MAX_PROXY_RETRIES) {
+              continue;
+            } else {
+              throw new Error('Bot detection encountered on all proxies');
+            }
+          }
         }
       }
     } catch (timeoutError) {
@@ -477,6 +536,18 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
     }
 
     if (!flightDataJSON) {
+      // Check one more time if this is a bot detection page
+      console.log('⚠️ FlightData is null - checking if this is bot detection...');
+      const htmlCheck = html.toLowerCase();
+      const isBotPage = botDetectionIndicators.some(indicator => htmlCheck.includes(indicator));
+
+      if (isBotPage) {
+        console.log('✓ Confirmed: Bot detection page');
+        console.log('   Moving to next proxy...');
+      } else {
+        console.log('   No obvious bot detection markers found');
+      }
+
       // Release proxy before continuing
       if (proxyId) releaseProxy(proxyId);
 
