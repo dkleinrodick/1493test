@@ -353,6 +353,10 @@
                         <input type="checkbox" id="useCache" checked>
                         <label for="useCache">📦 Use cached data (if available)</label>
                     </div>
+                    <div class="option-item">
+                        <input type="checkbox" id="useProxy" checked>
+                        <label for="useProxy" id="proxyLabel">🔒 Use premium proxies (for Direct mode)</label>
+                    </div>
                 </div>
 
                 <div class="button-group">
@@ -376,6 +380,21 @@
     </div>
 
     <script>
+        // Load proxy information
+        async function loadProxyInfo() {
+            try {
+                const response = await fetch('/api/proxy-info');
+                const data = await response.json();
+
+                if (data.available && data.count > 0) {
+                    document.getElementById('proxyLabel').textContent =
+                        `🔒 Use premium proxies (${data.count} available, for Direct mode)`;
+                }
+            } catch (error) {
+                console.error('Error loading proxy info:', error);
+            }
+        }
+
         // Load airports
         async function loadAirports() {
             try {
@@ -430,6 +449,7 @@
             const date = document.getElementById('date').value;
             const method = document.querySelector('input[name="method"]:checked').value;
             const useCache = document.getElementById('useCache').checked;
+            const useProxy = document.getElementById('useProxy').checked;
 
             // Show loading
             document.getElementById('loading').classList.add('active');
@@ -447,7 +467,8 @@
                         destination,
                         date,
                         method,
-                        useCache
+                        useCache,
+                        useProxy
                     })
                 });
 
@@ -595,6 +616,7 @@
 
         // Initialize
         loadAirports();
+        loadProxyInfo();
     </script>
 </body>
 </html>

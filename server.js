@@ -10,6 +10,7 @@ const {
 } = require('./database');
 const { scrapeFrontierDirect } = require('./scraper');
 const { scrapeFrontierWithScrapfly, testScrapflyConnection } = require('./scrapfly');
+const { getProxyCount, getAllProxies } = require('./premium-proxies');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -153,7 +154,7 @@ app.get('/api/airports', (req, res) => {
 
 // Search flights
 app.post('/api/search', async (req, res) => {
-  const { origin, destination, date, method, useCache, robotId } = req.body;
+  const { origin, destination, date, method, useCache, robotId, useProxy } = req.body;
 
   // Validate inputs
   if (!origin || !destination || !date) {
@@ -192,7 +193,8 @@ app.post('/api/search', async (req, res) => {
       if (scrapeMethod === 'api' || scrapeMethod === 'scrapfly') {
         flights = await scrapeFrontierWithScrapfly(origin, destination, date);
       } else {
-        flights = await scrapeFrontierDirect(origin, destination, date);
+        // Pass proxy option to direct scraper
+        flights = await scrapeFrontierDirect(origin, destination, date, { useProxy });
       }
 
       // Clear old flights and insert new ones
@@ -273,6 +275,21 @@ app.get('/api/test-scrapfly', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Get proxy information
+app.get('/api/proxy-info', (req, res) => {
+  try {
+    res.json({
+      count: getProxyCount(),
+      available: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+      available: false
     });
   }
 });

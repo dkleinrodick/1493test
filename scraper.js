@@ -1,6 +1,7 @@
 const { chromium } = require('playwright-extra');
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const fs = require('fs');
+const { getRandomProxy, getProxyCount } = require('./premium-proxies');
 
 // Add stealth plugin
 chromium.use(stealth);
@@ -22,18 +23,29 @@ async function waitForRateLimit() {
   lastRequestTime = Date.now();
 }
 
-async function scrapeFrontierDirect(origin, destination, date) {
+async function scrapeFrontierDirect(origin, destination, date, options = {}) {
   await waitForRateLimit();
+
+  const useProxy = options.useProxy || false;
 
   const url = `https://booking.flyfrontier.com/Flight/InternalSelect?o1=${origin}&d1=${destination}&dd1=${date}&adt=1&umnr=false&loy=false&mon=true&ftype=GW`;
 
   console.log(`Direct scraping with Playwright: ${origin} -> ${destination} on ${date}`);
   console.log(`Target URL: ${url}`);
 
+  // Get proxy if enabled
+  let selectedProxy = null;
+  if (useProxy) {
+    selectedProxy = getRandomProxy();
+    console.log(`Using premium proxy: ${selectedProxy} (${getProxyCount()} available)`);
+  } else {
+    console.log('Proxy disabled - scraping without proxy');
+  }
+
   let browser;
   try {
-    // Launch browser with stealth settings to avoid detection
-    browser = await chromium.launch({
+    // Build browser launch options
+    const launchOptions = {
       headless: true,
       args: [
         '--disable-dev-shm-usage',
@@ -41,7 +53,17 @@ async function scrapeFrontierDirect(origin, destination, date) {
         '--disable-setuid-sandbox',
         '--single-process'  // Required for resource-constrained environments
       ]
-    });
+    };
+
+    // Add proxy if enabled
+    if (useProxy && selectedProxy) {
+      launchOptions.proxy = {
+        server: `http://${selectedProxy}`
+      };
+    }
+
+    // Launch browser with stealth settings to avoid detection
+    browser = await chromium.launch(launchOptions);
 
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

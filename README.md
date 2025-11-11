@@ -5,6 +5,7 @@ A web application that scrapes Frontier Airlines for GoWild flight availability 
 ## 🎯 Features
 
 - ✅ **Scrapfly API Integration** - Bypasses bot protection and extracts flight data
+- ✅ **Premium Proxy Support** - 47 premium proxies for direct scraping mode
 - ✅ **Smart Parsing** - Extracts FlightData JSON directly from rendered pages
 - ✅ **SQLite Caching** - 6-hour cache reduces API calls
 - ✅ **140+ Airports** - Complete Frontier network coverage (882 routes)
@@ -48,6 +49,47 @@ Frontier uses sophisticated bot detection that identifies automation even with s
 3. **Residential Proxies** - Could be added to Playwright for better success rate
 
 **Recommendation:** Use Scrapfly API mode (default) for reliable results.
+
+## 🔒 Premium Proxies
+
+The application includes 47 premium proxies that can be used with direct scraping mode to improve success rates and avoid IP blocking.
+
+### Using Proxies
+
+**In the Web UI:**
+1. Select "Direct Scraping" mode
+2. Check the "Use premium proxies" checkbox (47 available)
+3. A random proxy will be automatically selected for each request
+
+**Testing Proxies:**
+```bash
+# Test proxy list
+node test-premium-proxies.js
+
+# Test proxy connection
+node test-scraper-with-proxy.js
+
+# Test full scraping with proxy
+node test-frontier-with-proxy.js ORD CUN 2025-12-01
+```
+
+**In Code:**
+```javascript
+const { scrapeFrontierDirect } = require('./scraper');
+
+// With proxy
+const flights = await scrapeFrontierDirect('ORD', 'CUN', '2025-12-01', { useProxy: true });
+
+// Without proxy
+const flights = await scrapeFrontierDirect('ORD', 'CUN', '2025-12-01', { useProxy: false });
+```
+
+**Proxy Features:**
+- 47 premium proxies on port 3129
+- Automatic random selection
+- Works with Playwright stealth mode
+- Reduces IP-based blocking
+- No authentication required
 
 ## 🔧 How It Works
 
@@ -96,7 +138,8 @@ Content-Type: application/json
   "destination": "CUN",
   "date": "2025-11-15",
   "method": "api",          # "direct" (Playwright) or "api" (Scrapfly)
-  "useCache": true          # Use cached data if available (6-hour cache)
+  "useCache": true,         # Use cached data if available (6-hour cache)
+  "useProxy": true          # Use premium proxies (for direct mode only)
 }
 ```
 
@@ -108,6 +151,11 @@ GET /api/airports
 ### Test Scrapfly Connection
 ```bash
 GET /api/test-scrapfly
+```
+
+### Get Proxy Information
+```bash
+GET /api/proxy-info
 ```
 
 ## Database Schema
@@ -133,13 +181,17 @@ Tracks all scraping attempts for debugging and analytics.
 ```
 ├── server.js                    # Express server and API routes
 ├── database.js                  # SQLite database functions
-├── scraper.js                   # Direct scraping with Playwright (blocked by Frontier)
+├── scraper.js                   # Direct scraping with Playwright + proxy support
 ├── scrapfly.js                  # Scrapfly API integration (recommended)
 ├── browseai.js                  # Browse.ai API integration (deprecated)
+├── premium-proxies.js           # Premium proxy list (47 proxies)
 ├── package.json                 # Dependencies (includes playwright, playwright-extra)
 ├── flights.db                   # SQLite database (created on first run)
 ├── test-direct-scraper.js       # Test script for direct scraping
 ├── test-playwright-basic.js     # Test script for Playwright functionality
+├── test-premium-proxies.js      # Test script for proxy validation
+├── test-scraper-with-proxy.js   # Test script for proxy connectivity
+├── test-frontier-with-proxy.js  # Test script for scraping with proxies
 └── public/
     └── index.html               # Frontend interface
 ```
