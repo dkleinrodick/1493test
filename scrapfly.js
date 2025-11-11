@@ -30,32 +30,23 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
   console.log(`Target URL: ${targetUrl}`);
 
   try {
-    // Build Scrapfly request with anti-scraping protection
+    // Build Scrapfly request - OPTIMIZED: No JS rendering needed!
+    // FlightData is in the HTML source, so we just need Scrapfly to bypass bot detection
     const scrapflyParams = {
       key: SCRAPFLY_API_KEY,
       url: targetUrl,
       asp: true,              // Anti Scraping Protection - bypasses bot detection
-      render_js: true,        // Render JavaScript
+      render_js: false,       // Don't render JS - FlightData is in source HTML (faster & cheaper!)
       country: 'us',          // Use US proxy
-      rendering_wait: 3000,   // Wait 3 seconds to ensure FlightData loads
-      retry: true,            // Auto-retry on failure
-      // Inject FlightData into page body for easier extraction (reduces parsing complexity)
-      js: Buffer.from(`
-        if (typeof FlightData !== 'undefined') {
-          const pre = document.createElement('pre');
-          pre.id = 'extracted-flight-data';
-          pre.textContent = FlightData;
-          document.body.prepend(pre);
-        }
-      `).toString('base64')
+      retry: true             // Auto-retry on failure
     };
 
     const scrapflyUrl = `${SCRAPFLY_BASE_URL}?${new URLSearchParams(scrapflyParams).toString()}`;
 
-    console.log('Calling Scrapfly API...');
+    console.log('Calling Scrapfly API (optimized - no JS rendering)...');
 
     const response = await axios.get(scrapflyUrl, {
-      timeout: 120000, // 120 seconds timeout (increased from 65s)
+      timeout: 30000, // 30 seconds timeout (reduced from 120s since no JS rendering)
       headers: {
         'Accept': 'application/json'
       }
@@ -70,7 +61,7 @@ async function scrapeFrontierWithScrapfly(origin, destination, date) {
 
     console.log(`HTML length: ${html.length} characters`);
 
-    // Parse flights from the HTML
+    // Parse flights from the HTML using simple regex extraction
     const flights = parseFlightsFromHTML(html, origin, destination, date);
 
     console.log(`Found ${flights.length} flights via Scrapfly`);
@@ -111,55 +102,39 @@ function parseFlightsFromHTML(html, origin, destination, date) {
   console.log('HTML saved to scrapfly_output.html for inspection');
 
   try {
-    // Find the FlightData variable
+    // Extract FlightData using simple regex (no JS rendering needed!)
+    // FlightData is embedded in the HTML source as: FlightData = '{...}';
     let flightDataJSON = null;
 
-    // First, try to get it from our injected element (faster, cleaner)
-    const extractedData = $('#extracted-flight-data').text();
-    if (extractedData) {
-      console.log('✓ Found injected FlightData!');
-      try {
-        // Decode ALL HTML entities using 'he' library
-        let jsonString = he.decode(extractedData);
-        flightDataJSON = JSON.parse(jsonString);
-        console.log('✓ Successfully parsed injected FlightData JSON');
-      } catch (parseError) {
-        console.error('✗ Error parsing injected FlightData:', parseError.message);
-      }
-    }
+    console.log('Extracting FlightData from HTML source...');
 
-    // Fallback: Look in script tags (old method)
-    if (!flightDataJSON) {
-      console.log('Injected data not found, searching script tags...');
+    $('script').each((i, elem) => {
+      const scriptContent = $(elem).html();
 
-      $('script').each((i, elem) => {
-        const scriptContent = $(elem).html();
+      // Look for FlightData = '{...}' pattern
+      if (scriptContent && scriptContent.includes('FlightData')) {
+        const match = scriptContent.match(/FlightData\s*=\s*['"]({[^'"]+})['"]/);
 
-        // Look for FlightData = '{...}' pattern
-        if (scriptContent && scriptContent.includes('FlightData')) {
-          const match = scriptContent.match(/FlightData\s*=\s*['"]({[^'"]+})['"]/);
+        if (match && match[1]) {
+          // Found the FlightData JSON string
+          let jsonString = match[1];
 
-          if (match && match[1]) {
-            // Found the FlightData JSON string
-            let jsonString = match[1];
+          // Decode ALL HTML entities using 'he' library
+          jsonString = he.decode(jsonString);
 
-            // Decode ALL HTML entities using 'he' library
-            jsonString = he.decode(jsonString);
+          console.log('Found FlightData in script tag! Parsing...');
+          console.log('JSON string preview:', jsonString.substring(0, 200));
 
-            console.log('Found FlightData in script tag! Parsing...');
-            console.log('JSON string preview:', jsonString.substring(0, 200));
-
-            try {
-              flightDataJSON = JSON.parse(jsonString);
-              console.log('✓ Successfully parsed FlightData JSON from script');
-            } catch (parseError) {
-              console.error('✗ Error parsing FlightData JSON:', parseError.message);
-              console.error('JSON string preview:', jsonString.substring(0, 500));
-            }
+          try {
+            flightDataJSON = JSON.parse(jsonString);
+            console.log('✓ Successfully parsed FlightData JSON from script');
+          } catch (parseError) {
+            console.error('✗ Error parsing FlightData JSON:', parseError.message);
+            console.error('JSON string preview:', jsonString.substring(0, 500));
           }
         }
-      });
-    }
+      }
+    });
 
     if (!flightDataJSON) {
       console.log('⚠️ FlightData variable not found in HTML');
