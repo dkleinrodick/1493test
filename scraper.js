@@ -20,6 +20,7 @@ let proxyList = [];
 let customProxies = []; // User-provided premium proxies
 let proxyPool = []; // Available proxies for parallel requests
 let proxyInUse = new Map(); // Track proxies currently in use
+let currentProxyType = null; // Track if we're using 'custom' or 'free' proxies
 let USE_PROXIES = config.USE_PROXIES || false; // Can be overridden by config.js
 const MAX_PARALLEL_PROXIES = 5; // Support up to 5 simultaneous requests
 
@@ -162,6 +163,7 @@ async function initializeProxyList(useCustomProxies = false) {
     if (customProxies.length > 0) {
       proxyPool = customProxies;
       proxyInUse.clear();
+      currentProxyType = 'custom'; // Mark that we're using custom proxies
       console.log(`✓ Proxy pool initialized with ${proxyPool.length} custom proxies (authenticated)`);
       console.log(`✓ Ready for ${Math.min(MAX_PARALLEL_PROXIES, proxyPool.length)} simultaneous requests`);
       return customProxies;
@@ -194,6 +196,7 @@ async function initializeProxyList(useCustomProxies = false) {
   // Initialize proxy pool with top proxies
   proxyPool = proxyList.slice(0, Math.min(proxyList.length, 100)); // Use top 100 proxies
   proxyInUse.clear();
+  currentProxyType = 'free'; // Mark that we're using free proxies
 
   console.log(`✓ Proxy pool initialized with ${proxyPool.length} proxies`);
   console.log(`✓ Ready for ${MAX_PARALLEL_PROXIES} simultaneous requests`);
@@ -247,12 +250,17 @@ async function scrapeFrontierDirect(origin, destination, date, useProxies = USE_
   console.log(`Target URL: ${url}`);
   console.log(`Proxy mode: ${useProxies ? (useCustomProxies ? 'CUSTOM PROXIES' : 'FREE PROXIES') : 'DISABLED'}`);
 
-  // Initialize proxy list if needed
-  if (useProxies && proxyPool.length === 0) {
+  // Initialize proxy list if needed, or if switching between custom/free proxies
+  const requestedProxyType = useCustomProxies ? 'custom' : 'free';
+  const needsReinitialize = useProxies && (proxyPool.length === 0 || currentProxyType !== requestedProxyType);
+
+  if (needsReinitialize) {
+    console.log(`🔄 Switching proxy mode from '${currentProxyType}' to '${requestedProxyType}'...`);
     await initializeProxyList(useCustomProxies);
   }
 
-  const MAX_PROXY_RETRIES = useProxies ? (config.MAX_PROXY_RETRIES || 3) : 1;
+  // Use more retries for custom proxies (they're premium), fewer for free proxies
+  const MAX_PROXY_RETRIES = useProxies ? (useCustomProxies ? 10 : 3) : 1;
   let attempt = 0;
   let lastError = null;
 
